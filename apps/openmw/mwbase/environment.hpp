@@ -1,10 +1,9 @@
 #ifndef GAME_BASE_ENVIRONMENT_H
 #define GAME_BASE_ENVIRONMENT_H
 
-namespace osg
-{
-    class Stats;
-}
+#include <components/misc/notnullptr.hpp>
+
+#include <memory>
 
 namespace Resource
 {
@@ -22,35 +21,29 @@ namespace MWBase
     class InputManager;
     class WindowManager;
     class StateManager;
+    class LuaManager;
 
     /// \brief Central hub for mw-subsystems
     ///
     /// This class allows each mw-subsystem to access any others subsystem's top-level manager class.
     ///
-    /// \attention Environment takes ownership of the manager class instances it is handed over in
-    /// the set* functions.
     class Environment
     {
             static Environment *sThis;
 
-            World *mWorld;
-            SoundManager *mSoundManager;
-            ScriptManager *mScriptManager;
-            WindowManager *mWindowManager;
-            MechanicsManager *mMechanicsManager;
-            DialogueManager *mDialogueManager;
-            Journal *mJournal;
-            InputManager *mInputManager;
-            StateManager *mStateManager;
-            Resource::ResourceSystem *mResourceSystem;
-            float mFrameDuration;
-            float mFrameRateLimit;
-
-            Environment (const Environment&);
-            ///< not implemented
-
-            Environment& operator= (const Environment&);
-            ///< not implemented
+            World* mWorld = nullptr;
+            SoundManager* mSoundManager = nullptr;
+            ScriptManager* mScriptManager = nullptr;
+            WindowManager* mWindowManager = nullptr;
+            MechanicsManager* mMechanicsManager = nullptr;
+            DialogueManager* mDialogueManager = nullptr;
+            Journal* mJournal = nullptr;
+            InputManager* mInputManager = nullptr;
+            StateManager* mStateManager = nullptr;
+            LuaManager* mLuaManager = nullptr;
+            Resource::ResourceSystem* mResourceSystem = nullptr;
+            float mFrameRateLimit = 0;
+            float mFrameDuration = 0;
 
         public:
 
@@ -58,61 +51,68 @@ namespace MWBase
 
             ~Environment();
 
-            void setWorld (World *world);
+            Environment(const Environment&) = delete;
 
-            void setSoundManager (SoundManager *soundManager);
+            Environment& operator=(const Environment&) = delete;
 
-            void setScriptManager (MWBase::ScriptManager *scriptManager);
+            void setWorld(World& value) { mWorld = &value; }
 
-            void setWindowManager (WindowManager *windowManager);
+            void setSoundManager(SoundManager& value) { mSoundManager = &value; }
 
-            void setMechanicsManager (MechanicsManager *mechanicsManager);
+            void setScriptManager(ScriptManager& value) { mScriptManager = &value; }
 
-            void setDialogueManager (DialogueManager *dialogueManager);
+            void setWindowManager(WindowManager& value) { mWindowManager = &value; }
 
-            void setJournal (Journal *journal);
+            void setMechanicsManager(MechanicsManager& value) { mMechanicsManager = &value; }
 
-            void setInputManager (InputManager *inputManager);
+            void setDialogueManager(DialogueManager& value) { mDialogueManager = &value; }
 
-            void setStateManager (StateManager *stateManager);
+            void setJournal(Journal& value) { mJournal = &value; }
 
-            void setResourceSystem (Resource::ResourceSystem *resourceSystem);
+            void setInputManager(InputManager& value) { mInputManager = &value; }
 
-            void setFrameDuration (float duration);
-            ///< Set length of current frame in seconds.
+            void setStateManager(StateManager& value) { mStateManager = &value; }
 
-            void setFrameRateLimit(float frameRateLimit);
-            float getFrameRateLimit() const;
+            void setLuaManager(LuaManager& value) { mLuaManager = &value; }
 
-            World *getWorld() const;
+            void setResourceSystem(Resource::ResourceSystem& value) { mResourceSystem = &value; }
 
-            SoundManager *getSoundManager() const;
+            Misc::NotNullPtr<World> getWorld() const { return mWorld; }
 
-            ScriptManager *getScriptManager() const;
+            Misc::NotNullPtr<SoundManager> getSoundManager() const { return mSoundManager; }
 
-            WindowManager *getWindowManager() const;
+            Misc::NotNullPtr<ScriptManager> getScriptManager() const { return mScriptManager; }
 
-            MechanicsManager *getMechanicsManager() const;
+            Misc::NotNullPtr<WindowManager> getWindowManager() const { return mWindowManager; }
 
-            DialogueManager *getDialogueManager() const;
+            Misc::NotNullPtr<MechanicsManager> getMechanicsManager() const { return mMechanicsManager; }
 
-            Journal *getJournal() const;
+            Misc::NotNullPtr<DialogueManager> getDialogueManager() const { return mDialogueManager; }
 
-            InputManager *getInputManager() const;
+            Misc::NotNullPtr<Journal> getJournal() const { return mJournal; }
 
-            StateManager *getStateManager() const;
+            Misc::NotNullPtr<InputManager> getInputManager() const { return mInputManager; }
 
-            Resource::ResourceSystem *getResourceSystem() const;
+            Misc::NotNullPtr<StateManager> getStateManager() const { return mStateManager; }
 
-            float getFrameDuration() const;
+            Misc::NotNullPtr<LuaManager> getLuaManager() const { return mLuaManager; }
 
-            void cleanup();
-            ///< Delete all mw*-subsystems.
+            Misc::NotNullPtr<Resource::ResourceSystem> getResourceSystem() const { return mResourceSystem; }
 
-            static const Environment& get();
-            ///< Return instance of this class.
+            float getFrameRateLimit() const { return mFrameRateLimit; }
 
-            void reportStats(unsigned int frameNumber, osg::Stats& stats) const;
+            void setFrameRateLimit(float value) { mFrameRateLimit = value; }
+
+            float getFrameDuration() const { return mFrameDuration; }
+
+            void setFrameDuration(float value) { mFrameDuration = value; }
+
+            /// Return instance of this class.
+            static const Environment& get()
+            {
+                assert(sThis != nullptr);
+                return *sThis;
+            }
     };
 }
 

@@ -6,13 +6,13 @@
 #include <atomic>
 #include <condition_variable>
 #include <thread>
-#include <mutex>
 #include <chrono>
 
-#include <stdint.h>
+#include <cstdint>
 
 #include <components/debug/debuglog.hpp>
 #include <components/misc/constants.hpp>
+#include <components/misc/resourcehelpers.hpp>
 #include <components/vfs/manager.hpp>
 
 #include "openal_output.hpp"
@@ -428,7 +428,7 @@ bool OpenAL_SoundStream::init(bool getLoudnessData)
     mBufferSize *= mFrameSize;
 
     if (getLoudnessData)
-        mLoudnessAnalyzer.reset(new Sound_Loudness(sLoudnessFPS, mSampleRate, chans, type));
+        mLoudnessAnalyzer = std::make_unique<Sound_Loudness>(sLoudnessFPS, mSampleRate, chans, type);
 
     mIsFinished = false;
     return true;
@@ -954,17 +954,7 @@ std::pair<Sound_Handle,size_t> OpenAL_Output::loadSound(const std::string &fname
     try
     {
         DecoderPtr decoder = mManager.getDecoder();
-        // Workaround: Bethesda at some point converted some of the files to mp3, but the references were kept as .wav.
-        if(decoder->mResourceMgr->exists(fname))
-            decoder->open(fname);
-        else
-        {
-            std::string file = fname;
-            std::string::size_type pos = file.rfind('.');
-            if(pos != std::string::npos)
-                file = file.substr(0, pos)+".mp3";
-            decoder->open(file);
-        }
+        decoder->open(Misc::ResourceHelpers::correctSoundPath(fname, decoder->mResourceMgr));
 
         ChannelConfig chans;
         SampleType type;
@@ -1109,13 +1099,8 @@ void OpenAL_Output::initCommon3D(ALuint source, const osg::Vec3f &pos, ALfloat m
     alSource3f(source, AL_VELOCITY, 0.0f, 0.0f, 0.0f);
 }
 
-void OpenAL_Output::updateCommon(ALuint source, const osg::Vec3f& pos, ALfloat maxdist, ALfloat gain, ALfloat pitch, bool useenv, bool is3d)
+void OpenAL_Output::updateCommon(ALuint source, const osg::Vec3f& pos, ALfloat maxdist, ALfloat gain, ALfloat pitch, bool useenv)
 {
-    if(is3d)
-    {
-        if((pos - mListenerPos).length2() > maxdist*maxdist)
-            gain = 0.0f;
-    }
     if(useenv && mListenerEnv == Env_Underwater && !mWaterFilter)
     {
         gain *= 0.9f;
@@ -1141,7 +1126,7 @@ bool OpenAL_Output::playSound(Sound *sound, Sound_Handle data, float offset)
     }
     source = mFreeSources.front();
 
-    initCommon2D(source, sound->getPosition(), sound->getRealVolume(), sound->getPitch(),
+    initCommon2D(source, sound->getPosition(), sound->getRealVolume(), getTimeScaledPitch(sound),
                  sound->getIsLooping(), sound->getUseEnv());
     alSourcei(source, AL_BUFFER, GET_PTRID(data));
     alSourcef(source, AL_SEC_OFFSET, offset);
@@ -1181,7 +1166,7 @@ bool OpenAL_Output::playSound3D(Sound *sound, Sound_Handle data, float offset)
     source = mFreeSources.front();
 
     initCommon3D(source, sound->getPosition(), sound->getMinDistance(), sound->getMaxDistance(),
-                 sound->getRealVolume(), sound->getPitch(), sound->getIsLooping(),
+                 sound->getRealVolume(), getTimeScaledPitch(sound), sound->getIsLooping(),
                  sound->getUseEnv());
     alSourcei(source, AL_BUFFER, GET_PTRID(data));
     alSourcef(source, AL_SEC_OFFSET, offset);
@@ -1243,7 +1228,7 @@ void OpenAL_Output::updateSound(Sound *sound)
     ALuint source = GET_PTRID(sound->mHandle);
 
     updateCommon(source, sound->getPosition(), sound->getMaxDistance(), sound->getRealVolume(),
-                 sound->getPitch(), sound->getUseEnv(), sound->getIs3D());
+                 getTimeScaledPitch(sound), sound->getUseEnv());
     getALError();
 }
 
@@ -1260,7 +1245,7 @@ bool OpenAL_Output::streamSound(DecoderPtr decoder, Stream *sound, bool getLoudn
     if(sound->getIsLooping())
         Log(Debug::Warning) << "Warning: cannot loop stream \"" << decoder->getName() << "\"";
 
-    initCommon2D(source, sound->getPosition(), sound->getRealVolume(), sound->getPitch(),
+    initCommon2D(source, sound->getPosition(), sound->getRealVolume(), getTimeScaledPitch(sound),
                  false, sound->getUseEnv());
     if(getALError() != AL_NO_ERROR)
         return false;
@@ -1292,7 +1277,7 @@ bool OpenAL_Output::streamSound3D(DecoderPtr decoder, Stream *sound, bool getLou
         Log(Debug::Warning) << "Warning: cannot loop stream \"" << decoder->getName() << "\"";
 
     initCommon3D(source, sound->getPosition(), sound->getMinDistance(), sound->getMaxDistance(),
-                 sound->getRealVolume(), sound->getPitch(), false, sound->getUseEnv());
+                 sound->getRealVolume(), getTimeScaledPitch(sound), false, sound->getUseEnv());
     if(getALError() != AL_NO_ERROR)
         return false;
 
@@ -1369,7 +1354,7 @@ void OpenAL_Output::updateStream(Stream *sound)
     ALuint source = stream->mSource;
 
     updateCommon(source, sound->getPosition(), sound->getMaxDistance(), sound->getRealVolume(),
-                 sound->getPitch(), sound->getUseEnv(), sound->getIs3D());
+                 getTimeScaledPitch(sound), sound->getUseEnv());
     getALError();
 }
 
@@ -1516,13 +1501,19 @@ OpenAL_Output::OpenAL_Output(SoundManager &mgr)
   , mDevice(nullptr), mContext(nullptr)
   , mListenerPos(0.0f, 0.0f, 0.0f), mListenerEnv(Env_Normal)
   , mWaterFilter(0), mWaterEffect(0), mDefaultEffect(0), mEffectSlot(0)
-  , mStreamThread(new StreamThread)
+  , mStreamThread(std::make_unique<StreamThread>())
 {
 }
 
 OpenAL_Output::~OpenAL_Output()
 {
     OpenAL_Output::deinit();
+}
+
+float OpenAL_Output::getTimeScaledPitch(SoundBase *sound)
+{
+    const bool shouldScale = !(sound->mParams.mFlags & PlayMode::NoScaling);
+    return shouldScale ? sound->getPitch() * mManager.getSimulationTimeScale() : sound->getPitch();
 }
 
 }

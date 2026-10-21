@@ -5,10 +5,9 @@
 
 #include <QAbstractItemModel>
 
-#include <components/esm/esmreader.hpp>
+#include <components/esm3/esmreader.hpp>
 #include <components/esm/defs.hpp>
-#include <components/esm/loadglob.hpp>
-#include <components/esm/cellref.hpp>
+#include <components/esm3/loadglob.hpp>
 
 #include <components/resource/scenemanager.hpp>
 #include <components/sceneutil/shadow.hpp>
@@ -71,11 +70,11 @@ CSMWorld::Data::Data (ToUTF8::FromType encoding, bool fsStrict, const Files::Pat
   mReader (nullptr), mDialogue (nullptr), mReaderIndex(1),
   mFsStrict(fsStrict), mDataPaths(dataPaths), mArchives(archives)
 {
-    mVFS.reset(new VFS::Manager(mFsStrict));
+    mVFS = std::make_unique<VFS::Manager>(mFsStrict);
     VFS::registerArchives(mVFS.get(), Files::Collections(mDataPaths, !mFsStrict), mArchives, true);
 
     mResourcesManager.setVFS(mVFS.get());
-    mResourceSystem.reset(new Resource::ResourceSystem(mVFS.get()));
+    mResourceSystem = std::make_unique<Resource::ResourceSystem>(mVFS.get());
 
     Shader::ShaderManager::DefineMap defines = mResourceSystem->getSceneManager()->getShaderManager().getGlobalDefines();
     Shader::ShaderManager::DefineMap shadowDefines = SceneUtil::ShadowManager::getShadowsDisabledDefines();
@@ -84,6 +83,8 @@ CSMWorld::Data::Data (ToUTF8::FromType encoding, bool fsStrict, const Files::Pat
     defines["preLightEnv"] = "0"; // Apply environment maps after lighting like Morrowind
     defines["radialFog"] = "0";
     defines["lightingModel"] = "0";
+    defines["reverseZ"] = "0";
+    defines["refraction_enabled"] = "0";
     for (const auto& define : shadowDefines)
         defines[define.first] = define.second;
     mResourceSystem->getSceneManager()->getShaderManager().setGlobalDefines(defines);
@@ -130,7 +131,7 @@ CSMWorld::Data::Data (ToUTF8::FromType encoding, bool fsStrict, const Files::Pat
     mFactions.addColumn (new StringIdColumn<ESM::Faction>);
     mFactions.addColumn (new RecordStateColumn<ESM::Faction>);
     mFactions.addColumn (new FixedRecordTypeColumn<ESM::Faction> (UniversalId::Type_Faction));
-    mFactions.addColumn (new NameColumn<ESM::Faction>);
+    mFactions.addColumn (new NameColumn<ESM::Faction>(ColumnBase::Display_String32));
     mFactions.addColumn (new AttributesColumn<ESM::Faction> (0));
     mFactions.addColumn (new AttributesColumn<ESM::Faction> (1));
     mFactions.addColumn (new HiddenColumn<ESM::Faction>);
@@ -339,7 +340,7 @@ CSMWorld::Data::Data (ToUTF8::FromType encoding, bool fsStrict, const Files::Pat
     mCells.addColumn (new StringIdColumn<Cell>);
     mCells.addColumn (new RecordStateColumn<Cell>);
     mCells.addColumn (new FixedRecordTypeColumn<Cell> (UniversalId::Type_Cell));
-    mCells.addColumn (new NameColumn<Cell>);
+    mCells.addColumn (new NameColumn<Cell>(ColumnBase::Display_String64));
     mCells.addColumn (new FlagColumn<Cell> (Columns::ColumnId_SleepForbidden, ESM::Cell::NoSleep));
     mCells.addColumn (new FlagColumn<Cell> (Columns::ColumnId_InteriorWater, ESM::Cell::HasWater,
         ColumnBase::Flag_Table | ColumnBase::Flag_Dialogue | ColumnBase::Flag_Dialogue_Refresh));
@@ -601,7 +602,7 @@ CSMWorld::Data::Data (ToUTF8::FromType encoding, bool fsStrict, const Files::Pat
         UniversalId::Type_Video);
     addModel (new IdTable (&mMetaData), UniversalId::Type_MetaData);
 
-    mActorAdapter.reset(new ActorAdapter(*this));
+    mActorAdapter = std::make_unique<ActorAdapter>(*this);
 
     mRefLoadCache.clear(); // clear here rather than startLoading() and continueLoading() for multiple content files
 }
@@ -917,8 +918,8 @@ const CSMWorld::MetaData& CSMWorld::Data::getMetaData() const
 
 void CSMWorld::Data::setMetaData (const MetaData& metaData)
 {
-    Record<MetaData> record (RecordBase::State_ModifiedOnly, nullptr, &metaData);
-    mMetaData.setRecord (0, record);
+    mMetaData.setRecord (0, std::make_unique<Record<MetaData> >(
+            Record<MetaData>(RecordBase::State_ModifiedOnly, nullptr, &metaData)));
 }
 
 QAbstractItemModel *CSMWorld::Data::getTableModel (const CSMWorld::UniversalId& id)
@@ -958,6 +959,25 @@ void CSMWorld::Data::merge()
     mGlobals.merge();
 }
 
+int CSMWorld::Data::getTotalRecords (const std::vector<boost::filesystem::path>& files)
+{
+    int records = 0;
+
+    std::unique_ptr<ESM::ESMReader> reader = std::make_unique<ESM::ESMReader>();
+
+    for (unsigned int i = 0; i < files.size(); ++i)
+    {
+        if (!boost::filesystem::exists(files[i]))
+            continue;
+
+        reader->open(files[i].string());
+        records += reader->getRecordCount();
+        reader->close();
+    }
+
+    return records;
+}
+
 int CSMWorld::Data::startLoading (const boost::filesystem::path& path, bool base, bool project)
 {
     // Don't delete the Reader yet. Some record types store a reference to the Reader to handle on-demand loading
@@ -983,7 +1003,8 @@ int CSMWorld::Data::startLoading (const boost::filesystem::path& path, bool base
         metaData.mId = "sys::meta";
         metaData.load (*mReader);
 
-        mMetaData.setRecord (0, Record<MetaData> (RecordBase::State_ModifiedOnly, nullptr, &metaData));
+        mMetaData.setRecord (0, std::make_unique<Record<MetaData> >(
+                    Record<MetaData> (RecordBase::State_ModifiedOnly, nullptr, &metaData)));
     }
 
     return mReader->getRecordCount();
@@ -1011,10 +1032,11 @@ void CSMWorld::Data::loadFallbackEntries()
             ESM::Static newMarker;
             newMarker.mId = marker.first;
             newMarker.mModel = marker.second;
-            CSMWorld::Record<ESM::Static> record;
-            record.mBase = newMarker;
-            record.mState = CSMWorld::RecordBase::State_BaseOnly;
-            mReferenceables.appendRecord (record, CSMWorld::UniversalId::Type_Static);
+            newMarker.mRecordFlags = 0;
+            auto record = std::make_unique<CSMWorld::Record<ESM::Static>>();
+            record->mBase = newMarker;
+            record->mState = CSMWorld::RecordBase::State_BaseOnly;
+            mReferenceables.appendRecord (std::move(record), CSMWorld::UniversalId::Type_Static);
         }
     }
 
@@ -1025,10 +1047,11 @@ void CSMWorld::Data::loadFallbackEntries()
             ESM::Door newMarker;
             newMarker.mId = marker.first;
             newMarker.mModel = marker.second;
-            CSMWorld::Record<ESM::Door> record;
-            record.mBase = newMarker;
-            record.mState = CSMWorld::RecordBase::State_BaseOnly;
-            mReferenceables.appendRecord (record, CSMWorld::UniversalId::Type_Door);
+            newMarker.mRecordFlags = 0;
+            auto record = std::make_unique<CSMWorld::Record<ESM::Door>>();
+            record->mBase = newMarker;
+            record->mState = CSMWorld::RecordBase::State_BaseOnly;
+            mReferenceables.appendRecord (std::move(record), CSMWorld::UniversalId::Type_Door);
         }
     }
 }
@@ -1065,7 +1088,7 @@ bool CSMWorld::Data::continueLoading (CSMDoc::Messages& messages)
 
     bool unhandledRecord = false;
 
-    switch (n.intval)
+    switch (n.toInt())
     {
         case ESM::REC_GLOB: mGlobals.load (*mReader, mBase); break;
         case ESM::REC_GMST: mGmsts.load (*mReader, mBase); break;

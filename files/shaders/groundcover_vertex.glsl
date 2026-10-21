@@ -8,6 +8,8 @@
     #extension GL_EXT_gpu_shader4: require
 #endif
 
+#include "openmw_vertex.h.glsl"
+
 #define GROUNDCOVER
 
 attribute vec4 aOffset;
@@ -31,14 +33,16 @@ varying float linearDepth;
 
 #if PER_PIXEL_LIGHTING
 varying vec3 passViewPos;
-varying vec3 passNormal;
 #else
 centroid varying vec3 passLighting;
 centroid varying vec3 shadowDiffuseLighting;
 #endif
 
+varying vec3 passNormal;
+
 #include "shadows_vertex.glsl"
 #include "lighting.glsl"
+#include "depth.glsl"
 
 uniform float osg_SimulationTime;
 uniform mat4 osg_ViewMatrixInverse;
@@ -141,9 +145,9 @@ void main(void)
     if (length(gl_ModelViewMatrix * vec4(position, 1.0)) > @groundcoverFadeEnd)
         gl_Position = vec4(0.0, 0.0, 0.0, 1.0);
     else
-        gl_Position = gl_ProjectionMatrix * viewPos;
+        gl_Position = mw_viewToClip(viewPos);
 
-    linearDepth = gl_Position.z;
+    linearDepth = getLinearDepth(gl_Position.z, viewPos.z);
 
 #if (!PER_PIXEL_LIGHTING || @shadows_enabled)
     vec3 viewNormal = normalize((gl_NormalMatrix * rotation3(rotation) * gl_Normal).xyz);
@@ -158,9 +162,9 @@ void main(void)
     passTangent = gl_MultiTexCoord7.xyzw * rotation;
 #endif
 
+    passNormal = rotation3(rotation) * gl_Normal.xyz;
 #if PER_PIXEL_LIGHTING
     passViewPos = viewPos.xyz;
-    passNormal = rotation3(rotation) * gl_Normal.xyz;
 #else
     vec3 diffuseLight, ambientLight;
     doLighting(viewPos.xyz, viewNormal, diffuseLight, ambientLight, shadowDiffuseLighting);

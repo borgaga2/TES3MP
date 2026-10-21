@@ -21,7 +21,11 @@
 #include <components/resource/resourcesystem.hpp>
 #include <components/sceneutil/lightmanager.hpp>
 #include <components/sceneutil/shadow.hpp>
+#include <components/sceneutil/rtt.hpp>
 #include <components/settings/settings.hpp>
+#include <components/sceneutil/nodecallback.hpp>
+#include <components/sceneutil/depth.hpp>
+#include <components/stereo/multiview.hpp>
 
 #include "../mwbase/world.hpp"
 #include "../mwworld/class.hpp"
@@ -36,16 +40,17 @@
 namespace MWRender
 {
 
-    class DrawOnceCallback : public osg::NodeCallback
+    class DrawOnceCallback : public SceneUtil::NodeCallback<DrawOnceCallback>
     {
     public:
-        DrawOnceCallback ()
+        DrawOnceCallback(osg::Node* subgraph)
             : mRendered(false)
             , mLastRenderedFrame(0)
+            , mSubgraph(subgraph)
         {
         }
 
-        void operator () (osg::Node* node, osg::NodeVisitor* nv) override
+        void operator () (osg::Node* node, osg::NodeVisitor* nv)
         {
             if (!mRendered)
             {
@@ -59,6 +64,9 @@ namespace MWRender
 
                 nv->setFrameStamp(fs);
 
+                // Update keyframe controllers in the scene graph first...
+                // RTTNode does not continue update traversal, so manually continue the update traversal since we need it.
+                mSubgraph->accept(*nv);
                 traverse(node, nv);
 
                 nv->setFrameStamp(previousFramestamp);
@@ -82,6 +90,7 @@ namespace MWRender
     private:
         bool mRendered;
         unsigned int mLastRenderedFrame;
+        osg::ref_ptr<osg::Node> mSubgraph;
     };
 
 
@@ -90,7 +99,7 @@ namespace MWRender
     class SetUpBlendVisitor : public osg::NodeVisitor
     {
     public:
-        SetUpBlendVisitor(): osg::NodeVisitor(TRAVERSE_ALL_CHILDREN), mNoAlphaUniform(new osg::Uniform("noAlpha", false))
+        SetUpBlendVisitor(): osg::NodeVisitor(TRAVERSE_ALL_CHILDREN)
         {
         }
 
@@ -129,13 +138,82 @@ namespace MWRender
                     }
                     // Disable noBlendAlphaEnv
                     newStateSet->setTextureMode(7, GL_TEXTURE_2D, osg::StateAttribute::OFF);
-                    newStateSet->addUniform(mNoAlphaUniform);
+                    newStateSet->setDefine("FORCE_OPAQUE", "0", osg::StateAttribute::ON);
                 }
             }
             traverse(node);
         }
-    private:
-        osg::ref_ptr<osg::Uniform> mNoAlphaUniform;
+    };
+
+    class CharacterPreviewRTTNode : public SceneUtil::RTTNode
+    {
+        static constexpr float fovYDegrees = 12.3f;
+        static constexpr float znear = 4.0f;
+        static constexpr float zfar = 10000.f;
+
+    public:
+        CharacterPreviewRTTNode(uint32_t sizeX, uint32_t sizeY)
+            : RTTNode(sizeX, sizeY, Settings::Manager::getInt("antialiasing", "Video"), false, 0, StereoAwareness::Unaware_MultiViewShaders)
+            , mAspectRatio(static_cast<float>(sizeX) / static_cast<float>(sizeY))
+        {
+            if (SceneUtil::AutoDepth::isReversed())
+                mPerspectiveMatrix = static_cast<osg::Matrixf>(SceneUtil::getReversedZProjectionMatrixAsPerspective(fovYDegrees, mAspectRatio, znear, zfar));
+            else
+                mPerspectiveMatrix = osg::Matrixf::perspective(fovYDegrees, mAspectRatio, znear, zfar);
+            mGroup->getOrCreateStateSet()->addUniform(new osg::Uniform("projectionMatrix", mPerspectiveMatrix));
+            mViewMatrix = osg::Matrixf::identity();
+            setColorBufferInternalFormat(GL_RGBA);
+            setDepthBufferInternalFormat(GL_DEPTH24_STENCIL8);
+        } 
+
+        void setDefaults(osg::Camera* camera) override 
+        {
+            camera->setName("CharacterPreview");
+            camera->setReferenceFrame(osg::Camera::ABSOLUTE_RF);
+            camera->setRenderTargetImplementation(osg::Camera::FRAME_BUFFER_OBJECT, osg::Camera::PIXEL_BUFFER_RTT);
+            camera->setClearColor(osg::Vec4(0.f, 0.f, 0.f, 0.f));
+            camera->setClearMask(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+            camera->setProjectionMatrixAsPerspective(fovYDegrees, mAspectRatio, znear, zfar);
+            camera->setViewport(0, 0, width(), height());
+            camera->setRenderOrder(osg::Camera::PRE_RENDER);
+            camera->setCullMask(~(Mask_UpdateVisitor));
+            camera->setComputeNearFarMode(osg::Camera::DO_NOT_COMPUTE_NEAR_FAR);
+            SceneUtil::setCameraClearDepth(camera);
+
+            camera->setNodeMask(Mask_RenderToTexture);
+            camera->addChild(mGroup);
+        };
+
+        void apply(osg::Camera* camera) override 
+        {
+            if(mCameraStateset)
+                camera->setStateSet(mCameraStateset);
+            camera->setViewMatrix(mViewMatrix);
+
+            if (shouldDoTextureArray())
+                Stereo::setMultiviewMatrices(mGroup->getOrCreateStateSet(), { mPerspectiveMatrix, mPerspectiveMatrix });
+        };
+
+        void addChild(osg::Node* node)
+        {
+            mGroup->addChild(node);
+        }
+
+        void setCameraStateset(osg::StateSet* stateset)
+        {
+            mCameraStateset = stateset;
+        }
+
+        void setViewMatrix(const osg::Matrixf& viewMatrix)
+        {
+            mViewMatrix = viewMatrix;
+        }
+
+        osg::ref_ptr<osg::Group> mGroup = new osg::Group;
+        osg::Matrixf mPerspectiveMatrix;
+        osg::Matrixf mViewMatrix;
+        osg::ref_ptr<osg::StateSet> mCameraStateset;
+        float mAspectRatio;
     };
 
     CharacterPreview::CharacterPreview(osg::Group* parent, Resource::ResourceSystem* resourceSystem,
@@ -149,35 +227,18 @@ namespace MWRender
         , mSizeX(sizeX)
         , mSizeY(sizeY)
     {
-        mTexture = new osg::Texture2D;
-        mTexture->setTextureSize(sizeX, sizeY);
-        mTexture->setInternalFormat(GL_RGBA);
-        mTexture->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR);
-        mTexture->setFilter(osg::Texture::MAG_FILTER, osg::Texture::LINEAR);
-        mTexture->setUserValue("premultiplied alpha", true);
+        mTextureStateSet = new osg::StateSet;
+        mTextureStateSet->setAttribute(new osg::BlendFunc(osg::BlendFunc::ONE, osg::BlendFunc::ONE_MINUS_SRC_ALPHA));
 
-        mCamera = new osg::Camera;
-        // hints that the camera is not relative to the master camera
-        mCamera->setReferenceFrame(osg::Camera::ABSOLUTE_RF);
-        mCamera->setRenderTargetImplementation(osg::Camera::FRAME_BUFFER_OBJECT, osg::Camera::PIXEL_BUFFER_RTT);
-        mCamera->setClearColor(osg::Vec4(0.f, 0.f, 0.f, 0.f));
-        mCamera->setClearMask(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        const float fovYDegrees = 12.3f;
-        mCamera->setProjectionMatrixAsPerspective(fovYDegrees, sizeX/static_cast<float>(sizeY), 0.1f, 10000.f); // zNear and zFar are autocomputed
-        mCamera->setViewport(0, 0, sizeX, sizeY);
-        mCamera->setRenderOrder(osg::Camera::PRE_RENDER);
-        mCamera->attach(osg::Camera::COLOR_BUFFER, mTexture, 0, 0, false, Settings::Manager::getInt("antialiasing", "Video"));
-        mCamera->setName("CharacterPreview");
-        mCamera->setComputeNearFarMode(osg::Camera::COMPUTE_NEAR_FAR_USING_BOUNDING_VOLUMES);
-        mCamera->setCullMask(~(Mask_UpdateVisitor));
-
-        mCamera->setNodeMask(Mask_RenderToTexture);
+        mRTTNode = new CharacterPreviewRTTNode(sizeX, sizeY);
+        mRTTNode->setNodeMask(Mask_RenderToTexture);
 
         bool ffp = mResourceSystem->getSceneManager()->getLightingMethod() == SceneUtil::LightingMethod::FFP;
 
         osg::ref_ptr<SceneUtil::LightManager> lightManager = new SceneUtil::LightManager(ffp);
         lightManager->setStartLight(1);
         osg::ref_ptr<osg::StateSet> stateset = lightManager->getOrCreateStateSet();
+        stateset->setDefine("FORCE_OPAQUE", "1", osg::StateAttribute::ON);
         stateset->setMode(GL_LIGHTING, osg::StateAttribute::ON);
         stateset->setMode(GL_NORMALIZE, osg::StateAttribute::ON);
         stateset->setMode(GL_CULL_FACE, osg::StateAttribute::ON);
@@ -197,6 +258,15 @@ namespace MWRender
         fog->setEnd(10000000);
         stateset->setAttributeAndModes(fog, osg::StateAttribute::OFF|osg::StateAttribute::OVERRIDE);
 
+        // TODO: Clean up this mess of loose uniforms that shaders depend on.
+        // turn off sky blending
+        stateset->addUniform(new osg::Uniform("far", 10000000.0f));
+        stateset->addUniform(new osg::Uniform("skyBlendingStart", 8000000.0f));
+        stateset->addUniform(new osg::Uniform("sky", 0));
+        stateset->addUniform(new osg::Uniform("screenRes", osg::Vec2f{1, 1}));
+
+        stateset->addUniform(new osg::Uniform("emissiveMult", 1.f));
+
         // Opaque stuff must have 1 as its fragment alpha as the FBO is translucent, so having blending off isn't enough
         osg::ref_ptr<osg::TexEnvCombine> noBlendAlphaEnv = new osg::TexEnvCombine();
         noBlendAlphaEnv->setCombine_Alpha(osg::TexEnvCombine::REPLACE);
@@ -205,6 +275,8 @@ namespace MWRender
         noBlendAlphaEnv->setCombine_RGB(osg::TexEnvCombine::REPLACE);
         noBlendAlphaEnv->setSource0_RGB(osg::TexEnvCombine::PREVIOUS);
         osg::ref_ptr<osg::Texture2D> dummyTexture = new osg::Texture2D();
+        dummyTexture->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_EDGE);
+        dummyTexture->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);
         dummyTexture->setInternalFormat(GL_DEPTH_COMPONENT);
         dummyTexture->setTextureSize(1, 1);
         // This might clash with a shadow map, so make sure it doesn't cast shadows
@@ -212,7 +284,6 @@ namespace MWRender
         dummyTexture->setShadowCompareFunc(osg::Texture::ShadowCompareFunc::ALWAYS);
         stateset->setTextureAttributeAndModes(7, dummyTexture, osg::StateAttribute::ON);
         stateset->setTextureAttribute(7, noBlendAlphaEnv, osg::StateAttribute::ON);
-        stateset->addUniform(new osg::Uniform("noAlpha", true));
 
         osg::ref_ptr<osg::LightModel> lightmodel = new osg::LightModel;
         lightmodel->setAmbientIntensity(osg::Vec4(0.0, 0.0, 0.0, 1.0));
@@ -256,23 +327,22 @@ namespace MWRender
 
         lightManager->addChild(lightSource);
 
-        mCamera->addChild(lightManager);
+        mRTTNode->addChild(lightManager);
 
         mNode = new osg::PositionAttitudeTransform;
         lightManager->addChild(mNode);
 
-        mDrawOnceCallback = new DrawOnceCallback;
-        mCamera->addUpdateCallback(mDrawOnceCallback);
+        mDrawOnceCallback = new DrawOnceCallback(mRTTNode->mGroup);
+        mRTTNode->addUpdateCallback(mDrawOnceCallback);
 
-        mParent->addChild(mCamera);
+        mParent->addChild(mRTTNode);
 
         mCharacter.mCell = nullptr;
     }
 
     CharacterPreview::~CharacterPreview ()
     {
-        mCamera->removeChildren(0, mCamera->getNumChildren());
-        mParent->removeChild(mCamera);
+        mParent->removeChild(mRTTNode);
     }
 
     int CharacterPreview::getTextureWidth() const
@@ -287,7 +357,6 @@ namespace MWRender
 
     void CharacterPreview::setBlendMode()
     {
-        mResourceSystem->getSceneManager()->recreateShaders(mNode, "objects", true);
         SetUpBlendVisitor visitor;
         mNode->accept(visitor);
     }
@@ -299,7 +368,7 @@ namespace MWRender
 
     osg::ref_ptr<osg::Texture2D> CharacterPreview::getTexture()
     {
-        return mTexture;
+        return static_cast<osg::Texture2D*>(mRTTNode->getColorTexture(nullptr));
     }
 
     void CharacterPreview::rebuild()
@@ -316,7 +385,7 @@ namespace MWRender
 
     void CharacterPreview::redraw()
     {
-        mCamera->setNodeMask(Mask_RenderToTexture);
+        mRTTNode->setNodeMask(Mask_RenderToTexture);
         mDrawOnceCallback->redrawNextFrame();
     }
 
@@ -337,7 +406,7 @@ namespace MWRender
         osg::ref_ptr<osg::StateSet> stateset = new osg::StateSet;
         mViewport = new osg::Viewport(0, mSizeY-sizeY, std::min(mSizeX, sizeX), std::min(mSizeY, sizeY));
         stateset->setAttributeAndModes(mViewport);
-        mCamera->setStateSet(stateset);
+        mRTTNode->setCameraStateset(stateset);
 
         redraw();
     }
@@ -357,7 +426,7 @@ namespace MWRender
         if(iter != inv.end())
         {
             groupname = "inventoryweapononehand";
-            if(iter->getTypeName() == typeid(ESM::Weapon).name())
+            if(iter->getType() == ESM::Weapon::sRecordId)
             {
                 MWWorld::LiveCellRef<ESM::Weapon> *ref = iter->get<ESM::Weapon>();
                 int type = ref->mBase->mData.mType;
@@ -390,7 +459,7 @@ namespace MWRender
         mAnimation->play(mCurrentAnimGroup, 1, Animation::BlendMask_All, false, 1.0f, "start", "stop", 0.0f, 0);
 
         MWWorld::ConstContainerStoreIterator torch = inv.getSlot(MWWorld::InventoryStore::Slot_CarriedLeft);
-        if(torch != inv.end() && torch->getTypeName() == typeid(ESM::Light).name() && showCarriedLeft)
+        if(torch != inv.end() && torch->getType() == ESM::Light::sRecordId && showCarriedLeft)
         {
             if(!mAnimation->getInfo("torch"))
                 mAnimation->play("torch", 2, Animation::BlendMask_LeftArm, false,
@@ -424,10 +493,11 @@ namespace MWRender
         // Set the traversal number from the last draw, so that the frame switch used for RigGeometry double buffering works correctly
         visitor.setTraversalNumber(mDrawOnceCallback->getLastRenderedFrame());
 
-        osg::Node::NodeMask nodeMask = mCamera->getNodeMask();
-        mCamera->setNodeMask(~0u);
-        mCamera->accept(visitor);
-        mCamera->setNodeMask(nodeMask);
+        auto* camera = mRTTNode->getCamera(nullptr);
+        osg::Node::NodeMask nodeMask = camera->getNodeMask();
+        camera->setNodeMask(~0u);
+        camera->accept(visitor);
+        camera->setNodeMask(nodeMask);
 
         if (intersector->containsIntersections())
         {
@@ -450,7 +520,8 @@ namespace MWRender
 
         mNode->setScale(scale);
 
-        mCamera->setViewMatrixAsLookAt(mPosition * scale.z(), mLookAt * scale.z(), osg::Vec3f(0,0,1));
+        auto viewMatrix = osg::Matrixf::lookAt(mPosition * scale.z(), mLookAt * scale.z(), osg::Vec3f(0, 0, 1));
+        mRTTNode->setViewMatrix(viewMatrix);
     }
 
     // --------------------------------------------------------------------------------------------------
@@ -483,7 +554,7 @@ namespace MWRender
         rebuild();
     }
 
-    class UpdateCameraCallback : public osg::NodeCallback
+    class UpdateCameraCallback : public SceneUtil::NodeCallback<UpdateCameraCallback, CharacterPreviewRTTNode*>
     {
     public:
         UpdateCameraCallback(osg::ref_ptr<const osg::Node> nodeToFollow, const osg::Vec3& posOffset, const osg::Vec3& lookAtOffset)
@@ -493,10 +564,8 @@ namespace MWRender
         {
         }
 
-        void operator()(osg::Node* node, osg::NodeVisitor* nv) override
+        void operator()(CharacterPreviewRTTNode* node, osg::NodeVisitor* nv)
         {
-            osg::Camera* cam = static_cast<osg::Camera*>(node);
-
             // Update keyframe controllers in the scene graph first...
             traverse(node, nv);
 
@@ -507,7 +576,8 @@ namespace MWRender
             osg::Matrix worldMat = osg::computeLocalToWorld(nodepaths[0]);
             osg::Vec3 headOffset = worldMat.getTrans();
 
-            cam->setViewMatrixAsLookAt(headOffset + mPosOffset, headOffset + mLookAtOffset, osg::Vec3(0,0,1));
+            auto viewMatrix = osg::Matrixf::lookAt(headOffset + mPosOffset, headOffset + mLookAtOffset, osg::Vec3(0, 0, 1));
+            node->setViewMatrix(viewMatrix);
         }
 
     private:
@@ -524,13 +594,13 @@ namespace MWRender
 
         // attach camera to follow the head node
         if (mUpdateCameraCallback)
-            mCamera->removeUpdateCallback(mUpdateCameraCallback);
+            mRTTNode->removeUpdateCallback(mUpdateCameraCallback);
 
         const osg::Node* head = mAnimation->getNode("Bip01 Head");
         if (head)
         {
             mUpdateCameraCallback = new UpdateCameraCallback(head, mPosition, mLookAt);
-            mCamera->addUpdateCallback(mUpdateCameraCallback);
+            mRTTNode->addUpdateCallback(mUpdateCameraCallback);
         }
         else
             Log(Debug::Error) << "Error: Bip01 Head node not found";

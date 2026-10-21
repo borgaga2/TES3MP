@@ -5,6 +5,9 @@
 #include <MyGUI_Gui.h>
 #include <MyGUI_ScrollView.h>
 
+#include <components/resource/resourcesystem.hpp>
+#include <components/misc/resourcehelpers.hpp>
+
 #include "../mwbase/environment.hpp"
 #include "../mwbase/world.hpp"
 #include "../mwbase/windowmanager.hpp"
@@ -181,8 +184,8 @@ namespace MWGui
             return;
 
         Widgets::MWSpellPtr spellWidget;
-        const int lineHeight = 18;
-        MyGUI::IntCoord coord(0, 0, mSpellArea->getWidth(), 18);
+        const int lineHeight = MWBase::Environment::get().getWindowManager()->getFontHeight() + 2;
+        MyGUI::IntCoord coord(0, 0, mSpellArea->getWidth(), lineHeight);
 
         const MWWorld::ESMStore &store =
             MWBase::Environment::get().getWorld()->getStore();
@@ -190,7 +193,8 @@ namespace MWGui
         const ESM::BirthSign *birth =
             store.get<ESM::BirthSign>().find(mCurrentBirthId);
 
-        mBirthImage->setImageTexture(MWBase::Environment::get().getWindowManager()->correctTexturePath(birth->mTexture));
+        mBirthImage->setImageTexture(Misc::ResourceHelpers::correctTexturePath(birth->mTexture,
+            MWBase::Environment::get().getResourceSystem()->getVFS()));
 
         std::vector<std::string> abilities, powers, spells;
 

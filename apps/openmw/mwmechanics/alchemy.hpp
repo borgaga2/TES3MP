@@ -9,12 +9,12 @@
 
     Include additional headers for multiplayer purposes
 */
-#include <components/esm/loadalch.hpp>
+#include <components/esm3/loadalch.hpp>
 /*
     End of tes3mp addition
 */
 
-#include <components/esm/effectlist.hpp>
+#include <components/esm3/effectlist.hpp>
 
 #include "../mwworld/ptr.hpp"
 

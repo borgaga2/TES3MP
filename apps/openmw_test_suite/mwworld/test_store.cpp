@@ -2,14 +2,19 @@
 
 #include <boost/filesystem/fstream.hpp>
 
+#include <boost/program_options/options_description.hpp>
+#include <boost/program_options/variables_map.hpp>
+
 #include <components/files/configurationmanager.hpp>
-#include <components/files/escape.hpp>
-#include <components/esm/esmreader.hpp>
-#include <components/esm/esmwriter.hpp>
+#include <components/esm3/esmreader.hpp>
+#include <components/esm3/esmwriter.hpp>
 #include <components/loadinglistener/loadinglistener.hpp>
+#include <components/misc/stringops.hpp>
 
 #include "apps/openmw/mwworld/esmstore.hpp"
 #include "apps/openmw/mwmechanics/spelllist.hpp"
+
+#include "../testing_util.hpp"
 
 namespace MWMechanics
 {
@@ -28,19 +33,15 @@ struct ContentFileTest : public ::testing::Test
         readContentFiles();
 
         // load the content files
-        std::vector<ESM::ESMReader> readerList;
-        readerList.resize(mContentFiles.size());
-
         int index=0;
+        ESM::Dialogue* dialogue = nullptr;
         for (const auto & mContentFile : mContentFiles)
         {
             ESM::ESMReader lEsm;
             lEsm.setEncoder(nullptr);
             lEsm.setIndex(index);
-            lEsm.setGlobalReaderList(&readerList);
             lEsm.open(mContentFile.string());
-            readerList[index] = lEsm;
-            mEsmStore.load(readerList[index], &dummyListener);
+            mEsmStore.load(lEsm, &dummyListener, dialogue);
 
             ++index;
         }
@@ -59,36 +60,37 @@ struct ContentFileTest : public ::testing::Test
 
         boost::program_options::options_description desc("Allowed options");
         desc.add_options()
-        ("data", boost::program_options::value<Files::EscapePathContainer>()->default_value(Files::EscapePathContainer(), "data")->multitoken()->composing())
-        ("content", boost::program_options::value<Files::EscapeStringVector>()->default_value(Files::EscapeStringVector(), "")
+        ("data", boost::program_options::value<Files::MaybeQuotedPathContainer>()->default_value(Files::MaybeQuotedPathContainer(), "data")->multitoken()->composing())
+        ("content", boost::program_options::value<std::vector<std::string>>()->default_value(std::vector<std::string>(), "")
             ->multitoken()->composing(), "content file(s): esm/esp, or omwgame/omwaddon")
-        ("data-local", boost::program_options::value<Files::EscapePath>()->default_value(Files::EscapePath(), ""));
-
-        boost::program_options::notify(variables);
+        ("data-local", boost::program_options::value<Files::MaybeQuotedPathContainer::value_type>()->default_value(Files::MaybeQuotedPathContainer::value_type(), ""));
+        Files::ConfigurationManager::addCommonOptions(desc);
 
         mConfigurationManager.readConfiguration(variables, desc, true);
 
         Files::PathContainer dataDirs, dataLocal;
         if (!variables["data"].empty()) {
-            dataDirs = Files::EscapePath::toPathContainer(variables["data"].as<Files::EscapePathContainer>());
+            dataDirs = asPathContainer(variables["data"].as<Files::MaybeQuotedPathContainer>());
         }
 
-        Files::PathContainer::value_type local(variables["data-local"].as<Files::EscapePath>().mPath);
-        if (!local.empty()) {
+        Files::PathContainer::value_type local(variables["data-local"].as<Files::MaybeQuotedPathContainer::value_type>());
+        if (!local.empty())
             dataLocal.push_back(local);
-        }
 
-        mConfigurationManager.processPaths (dataDirs);
-        mConfigurationManager.processPaths (dataLocal, true);
+        mConfigurationManager.filterOutNonExistingPaths(dataDirs);
+        mConfigurationManager.filterOutNonExistingPaths(dataLocal);
 
         if (!dataLocal.empty())
             dataDirs.insert (dataDirs.end(), dataLocal.begin(), dataLocal.end());
 
         Files::Collections collections (dataDirs, true);
 
-        std::vector<std::string> contentFiles = variables["content"].as<Files::EscapeStringVector>().toStdStringVector();
+        std::vector<std::string> contentFiles = variables["content"].as<std::vector<std::string>>();
         for (auto & contentFile : contentFiles)
-            mContentFiles.push_back(collections.getPath(contentFile));
+        {
+            if (!Misc::StringUtils::ciEndsWith(contentFile, ".omwscripts"))
+                mContentFiles.push_back(collections.getPath(contentFile));
+        }
     }
 
 protected:
@@ -106,8 +108,7 @@ TEST_F(ContentFileTest, dialogue_merging_test)
         return;
     }
 
-    const std::string file = "test_dialogue_merging.txt";
-
+    const std::string file = TestingOpenMW::outputFilePath("test_dialogue_merging.txt");
     boost::filesystem::ofstream stream;
     stream.open(file);
 
@@ -188,8 +189,7 @@ TEST_F(ContentFileTest, content_diagnostics_test)
         return;
     }
 
-    const std::string file = "test_content_diagnostics.txt";
-
+    const std::string file = TestingOpenMW::outputFilePath("test_content_diagnostics.txt");
     boost::filesystem::ofstream stream;
     stream.open(file);
 
@@ -225,17 +225,17 @@ protected:
 /// Create an ESM file in-memory containing the specified record.
 /// @param deleted Write record with deleted flag?
 template <typename T>
-Files::IStreamPtr getEsmFile(T record, bool deleted)
+std::unique_ptr<std::istream> getEsmFile(T record, bool deleted)
 {
     ESM::ESMWriter writer;
-    auto* stream = new std::stringstream;
+    auto stream = std::make_unique<std::stringstream>();
     writer.setFormat(0);
     writer.save(*stream);
     writer.startRecord(T::sRecordId);
     record.save(writer, deleted);
     writer.endRecord(T::sRecordId);
 
-    return Files::IStreamPtr(stream);
+    return stream;
 }
 
 /// Tests deletion of records.
@@ -250,31 +250,26 @@ TEST_F(StoreTest, delete_test)
     record.mId = recordId;
 
     ESM::ESMReader reader;
-    std::vector<ESM::ESMReader> readerList;
-    readerList.push_back(reader);
-    reader.setGlobalReaderList(&readerList);
+    ESM::Dialogue* dialogue = nullptr;
 
     // master file inserts a record
-    Files::IStreamPtr file = getEsmFile(record, false);
-    reader.open(file, "filename");
-    mEsmStore.load(reader, &dummyListener);
+    reader.open(getEsmFile(record, false), "filename");
+    mEsmStore.load(reader, &dummyListener, dialogue);
     mEsmStore.setUp();
 
     ASSERT_TRUE (mEsmStore.get<RecordType>().getSize() == 1);
 
     // now a plugin deletes it
-    file = getEsmFile(record, true);
-    reader.open(file, "filename");
-    mEsmStore.load(reader, &dummyListener);
+    reader.open(getEsmFile(record, true), "filename");
+    mEsmStore.load(reader, &dummyListener, dialogue);
     mEsmStore.setUp();
 
     ASSERT_TRUE (mEsmStore.get<RecordType>().getSize() == 0);
 
     // now another plugin inserts it again
     // expected behaviour is the record to reappear rather than staying deleted
-    file = getEsmFile(record, false);
-    reader.open(file, "filename");
-    mEsmStore.load(reader, &dummyListener);
+    reader.open(getEsmFile(record, false), "filename");
+    mEsmStore.load(reader, &dummyListener, dialogue);
     mEsmStore.setUp();
 
     ASSERT_TRUE (mEsmStore.get<RecordType>().getSize() == 1);
@@ -293,22 +288,18 @@ TEST_F(StoreTest, overwrite_test)
     record.mId = recordId;
 
     ESM::ESMReader reader;
-    std::vector<ESM::ESMReader> readerList;
-    readerList.push_back(reader);
-    reader.setGlobalReaderList(&readerList);
+    ESM::Dialogue* dialogue = nullptr;
 
     // master file inserts a record
-    Files::IStreamPtr file = getEsmFile(record, false);
-    reader.open(file, "filename");
-    mEsmStore.load(reader, &dummyListener);
+    reader.open(getEsmFile(record, false), "filename");
+    mEsmStore.load(reader, &dummyListener, dialogue);
     mEsmStore.setUp();
 
     // now a plugin overwrites it with changed data
     record.mId = recordIdUpper; // change id to uppercase, to test case smashing while we're at it
     record.mModel = "the_new_model";
-    file = getEsmFile(record, false);
-    reader.open(file, "filename");
-    mEsmStore.load(reader, &dummyListener);
+    reader.open(getEsmFile(record, false), "filename");
+    mEsmStore.load(reader, &dummyListener, dialogue);
     mEsmStore.setUp();
 
     // verify that changes were actually applied

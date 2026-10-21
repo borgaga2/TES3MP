@@ -1,7 +1,7 @@
 #ifndef GAME_SOUND_FFMPEG_DECODER_H
 #define GAME_SOUND_FFMPEG_DECODER_H
 
-#include <stdint.h>
+#include <cstdint>
 
 #if defined(_MSC_VER)
     #pragma warning (push)
@@ -24,10 +24,9 @@ extern "C"
     #pragma warning (pop)
 #endif
 
-#include <components/files/constrainedfilestream.hpp>
+#include <components/files/istreamptr.hpp>
 
 #include <string>
-#include <istream>
 
 #include "sound_decoder.hpp"
 

@@ -25,16 +25,14 @@ namespace MWPhysics
     class Object final : public PtrHolder
     {
     public:
-        Object(const MWWorld::Ptr& ptr, osg::ref_ptr<Resource::BulletShapeInstance> shapeInstance, int collisionType, PhysicsTaskScheduler* scheduler);
+        Object(const MWWorld::Ptr& ptr, osg::ref_ptr<Resource::BulletShapeInstance> shapeInstance, osg::Quat rotation, int collisionType, PhysicsTaskScheduler* scheduler);
         ~Object() override;
 
         const Resource::BulletShapeInstance* getShapeInstance() const;
         void setScale(float scale);
-        void setRotation(const osg::Quat& quat);
+        void setRotation(osg::Quat quat);
         void updatePosition();
         void commitPositionChange();
-        btCollisionObject* getCollisionObject();
-        const btCollisionObject* getCollisionObject() const;
         btTransform getTransform() const;
         /// Return solid flag. Not used by the object itself, true by default.
         bool isSolid() const;
@@ -45,15 +43,14 @@ namespace MWPhysics
         bool animateCollisionShapes();
 
     private:
-        std::unique_ptr<btCollisionObject> mCollisionObject;
         osg::ref_ptr<Resource::BulletShapeInstance> mShapeInstance;
         std::map<int, osg::NodePath> mRecIndexToNodePath;
         bool mSolid;
         btVector3 mScale;
         osg::Vec3f mPosition;
         osg::Quat mRotation;
-        bool mScaleUpdatePending;
-        bool mTransformUpdatePending;
+        bool mScaleUpdatePending = false;
+        bool mTransformUpdatePending = false;
         mutable std::mutex mPositionMutex;
         PhysicsTaskScheduler* mTaskScheduler;
     };

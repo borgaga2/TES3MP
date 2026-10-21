@@ -1,6 +1,7 @@
 #include "summoning.hpp"
 
 #include <components/debug/debuglog.hpp>
+#include <components/misc/resourcehelpers.hpp>
 
 /*
     Start of tes3mp addition
@@ -75,124 +76,113 @@ namespace MWMechanics
         return std::string();
     }
 
-    UpdateSummonedCreatures::UpdateSummonedCreatures(const MWWorld::Ptr &actor)
-        : mActor(actor)
+    int summonCreature(int effectId, const MWWorld::Ptr& summoner)
     {
-    }
-
-    void UpdateSummonedCreatures::visit(EffectKey key, int effectIndex, const std::string &sourceName, const std::string &sourceId, int casterActorId, float magnitude, float remainingTime, float totalTime)
-    {
-        if (isSummoningEffect(key.mId) && magnitude > 0)
+        std::string creatureID = getSummonedCreature(effectId);
+        int creatureActorId = -1;
+        if (!creatureID.empty())
         {
-            mActiveEffects.insert(ESM::SummonKey(key.mId, sourceId, effectIndex));
-        }
-    }
+            /*
+                Start of tes3mp change (major)
 
-    void UpdateSummonedCreatures::process(bool cleanup)
-    {
-        MWMechanics::CreatureStats& creatureStats = mActor.getClass().getCreatureStats(mActor);
-        std::map<ESM::SummonKey, int>& creatureMap = creatureStats.getSummonedCreatureMap();
+                Send an ID_OBJECT_SPAWN packet every time a creature is summoned in a cell that we hold
+                authority over, then delete the creature and wait for the server to send it back with a
+                unique mpNum of its own
 
-        for (std::set<ESM::SummonKey>::iterator it = mActiveEffects.begin(); it != mActiveEffects.end(); ++it)
-        {
-            bool found = creatureMap.find(*it) != creatureMap.end();
-            if (!found)
+                Comment out most of the code here except for the actual placement of the Ptr and the
+                creatureActorId insertion into the creatureMap
+            */
+            try
             {
-                std::string creatureID = getSummonedCreature(it->mEffectId);
-                if (!creatureID.empty())
+                auto world = MWBase::Environment::get().getWorld();
+                MWWorld::ManualRef ref(world->getStore(), creatureID, 1);
+
+                /*
+                MWMechanics::CreatureStats& summonedCreatureStats = ref.getPtr().getClass().getCreatureStats(ref.getPtr());
+
+                // Make the summoned creature follow its master and help in fights
+                AiFollow package(summoner);
+                summonedCreatureStats.getAiSequence().stack(package, ref.getPtr());
+                creatureActorId = summonedCreatureStats.getActorId();
+                */
+
+                MWWorld::Ptr placed = world->safePlaceObject(ref.getPtr(), summoner, summoner.getCell(), 0, 120.f);
+
+                /*
+                MWRender::Animation* anim = world->getAnimation(placed);
+                if (anim)
                 {
-                    int creatureActorId = -1;
-
-                    /*
-                        Start of tes3mp change (major)
-
-                        Send an ID_OBJECT_SPAWN packet every time a creature is summoned in a cell that we hold
-                        authority over, then delete the creature and wait for the server to send it back with a
-                        unique mpNum of its own
-
-                        Comment out most of the code here except for the actual placement of the Ptr and the
-                        creatureActorId insertion into the creatureMap
-                    */
-                    try
+                    const ESM::Static* fx = world->getStore().get<ESM::Static>().search("VFX_Summon_Start");
+                    if (fx)
                     {
-                        MWWorld::ManualRef ref(MWBase::Environment::get().getWorld()->getStore(), creatureID, 1);
-
-                        /*
-                        MWMechanics::CreatureStats& summonedCreatureStats = ref.getPtr().getClass().getCreatureStats(ref.getPtr());
-
-                        // Make the summoned creature follow its master and help in fights
-                        AiFollow package(mActor);
-                        summonedCreatureStats.getAiSequence().stack(package, ref.getPtr());
-                        creatureActorId = summonedCreatureStats.getActorId();
-                        */
-
-                        MWWorld::Ptr placed = MWBase::Environment::get().getWorld()->safePlaceObject(ref.getPtr(), mActor, mActor.getCell(), 0, 120.f);
-
-                        /*
-                        MWRender::Animation* anim = MWBase::Environment::get().getWorld()->getAnimation(placed);
-                        if (anim)
-                        {
-                            const ESM::Static* fx = MWBase::Environment::get().getWorld()->getStore().get<ESM::Static>()
-                                    .search("VFX_Summon_Start");
-                            if (fx)
-                                anim->addEffect("meshes\\" + fx->mModel, -1, false);
-                        }
-                        */
-
-                        if (mwmp::Main::get().getCellController()->hasLocalAuthority(*placed.getCell()->getCell()))
-                        {
-                            mwmp::ObjectList *objectList = mwmp::Main::get().getNetworking()->getObjectList();
-                            objectList->reset();
-                            objectList->packetOrigin = mwmp::CLIENT_GAMEPLAY;
-
-                            MWMechanics::CreatureStats *actorCreatureStats = &mActor.getClass().getCreatureStats(mActor);
-                            int effectId = it->mEffectId;
-                            std::string sourceId = it->mSourceId;
-                            float duration = actorCreatureStats->getActiveSpells().getEffectDuration(effectId, sourceId);
-                            objectList->addObjectSpawn(placed, mActor, sourceId, effectId, duration);
-                            objectList->sendObjectSpawn();
-                        }
-
-                        MWBase::Environment::get().getWorld()->deleteObject(placed);
+                        const VFS::Manager* const vfs = MWBase::Environment::get().getResourceSystem()->getVFS();
+                        anim->addEffect(Misc::ResourceHelpers::correctMeshPath(fx->mModel, vfs), -1, false);
                     }
-                    catch (std::exception& e)
-                    {
-                        Log(Debug::Error) << "Failed to spawn summoned creature: " << e.what();
-                        // still insert into creatureMap so we don't try to spawn again every frame, that would spam the warning log
-                    }
-
-                    creatureMap.emplace(*it, creatureActorId);
-                    /*
-                        End of tes3mp change (major)
-                    */
                 }
-            }
-        }
+                */
 
-        // Update summon effects
-        for (std::map<ESM::SummonKey, int>::iterator it = creatureMap.begin(); it != creatureMap.end(); )
-        {
-            bool found = mActiveEffects.find(it->first) != mActiveEffects.end();
-            if (!found)
-            {
-                // Effect has ended
-                MWBase::Environment::get().getMechanicsManager()->cleanupSummonedCreature(mActor, it->second);
-                creatureMap.erase(it++);
-                continue;
+                if (mwmp::Main::get().getCellController()->hasLocalAuthority(*placed.getCell()->getCell()))
+                {
+                    mwmp::ObjectList *objectList = mwmp::Main::get().getNetworking()->getObjectList();
+                    objectList->reset();
+                    objectList->packetOrigin = mwmp::CLIENT_GAMEPLAY;
+
+                    // As of OpenMW 0.48, summonCreature() is no longer told which spell it was called for,
+                    // so find the source spell and the duration by looking for the not yet applied summon
+                    // effect (its mArg is still -1) in the summoner's active spells
+                    std::string sourceId;
+                    float duration = 0.f;
+
+                    const MWMechanics::ActiveSpells& activeSpells = summoner.getClass().getCreatureStats(summoner).getActiveSpells();
+
+                    for (auto spellIt = activeSpells.begin(); spellIt != activeSpells.end() && sourceId.empty(); ++spellIt)
+                    {
+                        for (const auto& activeEffect : spellIt->getEffects())
+                        {
+                            if (activeEffect.mEffectId == effectId && activeEffect.mArg == -1)
+                            {
+                                sourceId = spellIt->getId();
+                                duration = activeEffect.mDuration;
+                                break;
+                            }
+                        }
+                    }
+
+                    objectList->addObjectSpawn(placed, summoner, sourceId, effectId, duration);
+                    objectList->sendObjectSpawn();
+                }
+
+                world->deleteObject(placed);
             }
-            ++it;
+            catch (std::exception& e)
+            {
+                Log(Debug::Error) << "Failed to spawn summoned creature: " << e.what();
+                // still insert into creatureMap so we don't try to spawn again every frame, that would spam the warning log
+            }
+
+            summoner.getClass().getCreatureStats(summoner).getSummonedCreatureMap().emplace(effectId, creatureActorId);
+            /*
+                End of tes3mp change (major)
+            */
         }
+        return creatureActorId;
+    }
+
+    void updateSummons(const MWWorld::Ptr& summoner, bool cleanup)
+    {
+        MWMechanics::CreatureStats& creatureStats = summoner.getClass().getCreatureStats(summoner);
+        auto& creatureMap = creatureStats.getSummonedCreatureMap();
 
         std::vector<int> graveyard = creatureStats.getSummonedCreatureGraveyard();
         creatureStats.getSummonedCreatureGraveyard().clear();
 
         for (const int creature : graveyard)
-            MWBase::Environment::get().getMechanicsManager()->cleanupSummonedCreature(mActor, creature);
+            MWBase::Environment::get().getMechanicsManager()->cleanupSummonedCreature(summoner, creature);
 
         if (!cleanup)
             return;
 
-        for (std::map<ESM::SummonKey, int>::iterator it = creatureMap.begin(); it != creatureMap.end(); )
+        for (auto it = creatureMap.begin(); it != creatureMap.end(); )
         {
             if(it->second == -1)
             {
@@ -204,21 +194,22 @@ namespace MWMechanics
             if (!ptr.isEmpty() && ptr.getClass().getCreatureStats(ptr).isDead() && ptr.getClass().getCreatureStats(ptr).isDeathAnimationFinished())
             {
                 // Purge the magic effect so a new creature can be summoned if desired
-                purgeSummonEffect(mActor, *it);
+                auto summon = *it;
                 creatureMap.erase(it++);
+                purgeSummonEffect(summoner, summon);
             }
             else
                 ++it;
         }
     }
 
-    void purgeSummonEffect(const MWWorld::Ptr& summoner, const std::pair<const ESM::SummonKey, int>& summon)
+    void purgeSummonEffect(const MWWorld::Ptr& summoner, const std::pair<int, int>& summon)
     {
         auto& creatureStats = summoner.getClass().getCreatureStats(summoner);
-        creatureStats.getActiveSpells().purgeEffect(summon.first.mEffectId, summon.first.mSourceId, summon.first.mEffectIndex);
-        creatureStats.getSpells().purgeEffect(summon.first.mEffectId, summon.first.mSourceId);
-        if (summoner.getClass().hasInventoryStore(summoner))
-            summoner.getClass().getInventoryStore(summoner).purgeEffect(summon.first.mEffectId, summon.first.mSourceId, false, summon.first.mEffectIndex);
+        creatureStats.getActiveSpells().purge([summon] (const auto& spell, const auto& effect)
+        {
+            return effect.mEffectId == summon.first && effect.mArg == summon.second;
+        }, summoner);
 
         MWBase::Environment::get().getMechanicsManager()->cleanupSummonedCreature(summoner, summon.second);
     }

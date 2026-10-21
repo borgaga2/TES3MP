@@ -3,9 +3,12 @@
 
 #include <osg/Vec3f>
 
+#include <vector>
+
 namespace MWWorld
 {
     class Ptr;
+    class ConstPtr;
 }
 
 namespace MWMechanics
@@ -20,6 +23,9 @@ namespace MWMechanics
     /// Returns door pointer within range. No guarantee is given as to which one
     /** \return Pointer to the door, or empty pointer if none exists **/
     const MWWorld::Ptr getNearbyDoor(const MWWorld::Ptr& actor, float minDist);
+
+    bool isAreaOccupiedByOtherActor(const MWWorld::ConstPtr& actor, const osg::Vec3f& destination, bool ignorePlayer = false,
+        std::vector<MWWorld::Ptr>* occupyingActors = nullptr);
 
     class ObstacleCheck
     {
@@ -39,6 +45,7 @@ namespace MWMechanics
 
         private:
             osg::Vec3f mPrev;
+            osg::Vec3f mDestination;
 
             // directions to try moving in when get stuck
             static const float evadeDirections[NUM_EVADE_DIRECTIONS][2];

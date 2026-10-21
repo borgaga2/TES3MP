@@ -2,6 +2,7 @@
 #define OPENMW_COMPONENTS_DETOURNAVIGATOR_NAVIGATORSTUB_H
 
 #include "navigator.hpp"
+#include "settings.hpp"
 
 namespace Loading
 {
@@ -15,15 +16,11 @@ namespace DetourNavigator
     public:
         NavigatorStub() = default;
 
-        void addAgent(const osg::Vec3f& /*agentHalfExtents*/) override {}
+        void addAgent(const AgentBounds& /*agentBounds*/) override {}
 
-        void removeAgent(const osg::Vec3f& /*agentHalfExtents*/) override {}
+        void removeAgent(const AgentBounds& /*agentBounds*/) override {}
 
-        bool addObject(const ObjectId /*id*/, const osg::ref_ptr<const osg::Object>& /*holder*/,
-            const btHeightfieldTerrainShape& /*shape*/, const btTransform& /*transform*/) override
-        {
-            return false;
-        }
+        void setWorldspace(std::string_view /*worldspace*/) override {}
 
         bool addObject(const ObjectId /*id*/, const ObjectShapes& /*shapes*/, const btTransform& /*transform*/) override
         {
@@ -50,13 +47,22 @@ namespace DetourNavigator
             return false;
         }
 
-        bool addWater(const osg::Vec2i& /*cellPosition*/, const int /*cellSize*/, const btScalar /*level*/,
-            const btTransform& /*transform*/) override
+        bool addWater(const osg::Vec2i& /*cellPosition*/, int /*cellSize*/, float /*level*/) override
         {
             return false;
         }
 
         bool removeWater(const osg::Vec2i& /*cellPosition*/) override
+        {
+            return false;
+        }
+
+        bool addHeightfield(const osg::Vec2i& /*cellPosition*/, int /*cellSize*/, const HeightfieldShape& /*height*/) override
+        {
+            return false;
+        }
+
+        bool removeHeightfield(const osg::Vec2i& /*cellPosition*/) override
         {
             return false;
         }
@@ -67,20 +73,22 @@ namespace DetourNavigator
 
         void update(const osg::Vec3f& /*playerPosition*/) override {}
 
+        void updateBounds(const osg::Vec3f& /*playerPosition*/) override {}
+
         void updatePlayerPosition(const osg::Vec3f& /*playerPosition*/) override {};
 
         void setUpdatesEnabled(bool /*enabled*/) override {}
 
         void wait(Loading::Listener& /*listener*/, WaitConditionType /*waitConditionType*/) override {}
 
-        SharedNavMeshCacheItem getNavMesh(const osg::Vec3f& /*agentHalfExtents*/) const override
+        SharedNavMeshCacheItem getNavMesh(const AgentBounds& /*agentBounds*/) const override
         {
             return mEmptyNavMeshCacheItem;
         }
 
-        std::map<osg::Vec3f, SharedNavMeshCacheItem> getNavMeshes() const override
+        std::map<AgentBounds, SharedNavMeshCacheItem> getNavMeshes() const override
         {
-            return std::map<osg::Vec3f, SharedNavMeshCacheItem>();
+            return {};
         }
 
         const Settings& getSettings() const override
@@ -90,7 +98,7 @@ namespace DetourNavigator
 
         void reportStats(unsigned int /*frameNumber*/, osg::Stats& /*stats*/) const override {}
 
-        RecastMeshTiles getRecastMeshTiles() override
+        RecastMeshTiles getRecastMeshTiles() const override
         {
             return {};
         }

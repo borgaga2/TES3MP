@@ -1,7 +1,9 @@
 #ifndef OPENMW_COMPONENTS_RESOURCE_BULLETSHAPE_H
 #define OPENMW_COMPONENTS_RESOURCE_BULLETSHAPE_H
 
+#include <array>
 #include <map>
+#include <memory>
 
 #include <osg/Object>
 #include <osg/ref_ptr>
@@ -11,27 +13,38 @@
 
 class btCollisionShape;
 
+namespace NifBullet
+{
+    class BulletNifLoader;
+}
+
 namespace Resource
 {
-
-    class BulletShapeInstance;
-    class BulletShape : public osg::Object
+    struct DeleteCollisionShape
     {
-    public:
-        BulletShape();
-        BulletShape(const BulletShape& copy, const osg::CopyOp& copyop);
-        virtual ~BulletShape();
+        void operator()(btCollisionShape* shape) const;
+    };
 
-        META_Object(Resource, BulletShape)
+    using CollisionShapePtr = std::unique_ptr<btCollisionShape, DeleteCollisionShape>;
 
-        btCollisionShape* mCollisionShape;
-        btCollisionShape* mAvoidCollisionShape;
+    struct CollisionBox
+    {
+        osg::Vec3f mExtents;
+        osg::Vec3f mCenter;
+    };
 
-        struct CollisionBox
-        {
-            osg::Vec3f extents;
-            osg::Vec3f center;
-        };
+    enum class VisualCollisionType
+    {
+        None,
+        Default,
+        Camera
+    };
+
+    struct BulletShape : public osg::Object
+    {
+        CollisionShapePtr mCollisionShape;
+        CollisionShapePtr mAvoidCollisionShape;
+
         // Used for actors and projectiles. mCollisionShape is used for actors only when we need to autogenerate collision box for creatures.
         // For now, use one file <-> one resource for simplicity.
         CollisionBox mCollisionBox;
@@ -42,19 +55,19 @@ namespace Resource
         // we store the node's record index mapped to the child index of the shape in the btCompoundShape.
         std::map<int, int> mAnimatedShapes;
 
-        osg::ref_ptr<BulletShapeInstance> makeInstance() const;
+        std::string mFileName;
+        std::string mFileHash;
 
-        btCollisionShape* duplicateCollisionShape(const btCollisionShape* shape) const;
+        VisualCollisionType mVisualCollisionType = VisualCollisionType::None;
 
-        btCollisionShape* getCollisionShape() const;
+        BulletShape() = default;
+        BulletShape(const BulletShape& copy, const osg::CopyOp& copyop);
 
-        btCollisionShape* getAvoidCollisionShape() const;
+        META_Object(Resource, BulletShape)
 
         void setLocalScaling(const btVector3& scale);
 
-    private:
-
-        void deleteShape(btCollisionShape* shape);
+        bool isAnimated() const { return !mAnimatedShapes.empty(); }
     };
 
 
@@ -65,9 +78,13 @@ namespace Resource
     public:
         BulletShapeInstance(osg::ref_ptr<const BulletShape> source);
 
+        const osg::ref_ptr<const BulletShape>& getSource() const { return mSource; }
+
     private:
         osg::ref_ptr<const BulletShape> mSource;
     };
+
+    osg::ref_ptr<BulletShapeInstance> makeInstance(osg::ref_ptr<const BulletShape> source);
 
     // Subclass btBhvTriangleMeshShape to auto-delete the meshInterface
     struct TriangleMeshShape : public btBvhTriangleMeshShape

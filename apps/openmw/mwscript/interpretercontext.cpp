@@ -27,6 +27,7 @@
 #include "../mwbase/scriptmanager.hpp"
 #include "../mwbase/windowmanager.hpp"
 #include "../mwbase/inputmanager.hpp"
+#include "../mwbase/luamanager.hpp"
 
 #include "../mwworld/action.hpp"
 #include "../mwworld/class.hpp"
@@ -132,7 +133,7 @@ namespace MWScript
     MissingImplicitRefError::MissingImplicitRefError() : std::runtime_error("no implicit reference") {}
 
     int InterpreterContext::findLocalVariableIndex (const std::string& scriptId,
-        const std::string& name, char type) const
+        std::string_view name, char type) const
     {
         int index = MWBase::Environment::get().getScriptManager()->getLocals (scriptId).
             searchIndex (type, name);
@@ -171,6 +172,15 @@ namespace MWScript
             mReference = *ptr;
         else
             mGlobalScriptDesc = globalScriptDesc;
+    }
+
+    std::string InterpreterContext::getTarget() const
+    {
+        if(!mReference.isEmpty())
+            return mReference.mRef->mRef.getRefId();
+        else if(mGlobalScriptDesc)
+            return mGlobalScriptDesc->getId();
+        return {};
     }
 
     int InterpreterContext::getLocalShort (int index) const
@@ -327,23 +337,23 @@ namespace MWScript
     {
     }
 
-    int InterpreterContext::getGlobalShort (const std::string& name) const
+    int InterpreterContext::getGlobalShort(std::string_view name) const
     {
         return MWBase::Environment::get().getWorld()->getGlobalInt (name);
     }
 
-    int InterpreterContext::getGlobalLong (const std::string& name) const
+    int InterpreterContext::getGlobalLong(std::string_view name) const
     {
         // a global long is internally a float.
         return MWBase::Environment::get().getWorld()->getGlobalInt (name);
     }
 
-    float InterpreterContext::getGlobalFloat (const std::string& name) const
+    float InterpreterContext::getGlobalFloat(std::string_view name) const
     {
         return MWBase::Environment::get().getWorld()->getGlobalFloat (name);
     }
 
-    void InterpreterContext::setGlobalShort (const std::string& name, int value)
+    void InterpreterContext::setGlobalShort(std::string_view name, int value)
     {
         /*
             Start of tes3mp addition
@@ -373,7 +383,7 @@ namespace MWScript
         MWBase::Environment::get().getWorld()->setGlobalInt (name, value);
     }
 
-    void InterpreterContext::setGlobalLong (const std::string& name, int value)
+    void InterpreterContext::setGlobalLong(std::string_view name, int value)
     {
         /*
             Start of tes3mp addition
@@ -403,7 +413,7 @@ namespace MWScript
         MWBase::Environment::get().getWorld()->setGlobalInt (name, value);
     }
 
-    void InterpreterContext::setGlobalFloat (const std::string& name, float value)
+    void InterpreterContext::setGlobalFloat(std::string_view name, float value)
     {
         /*
             Start of tes3mp addition
@@ -452,13 +462,13 @@ namespace MWScript
         return ids;
     }
 
-    char InterpreterContext::getGlobalType (const std::string& name) const
+    char InterpreterContext::getGlobalType(std::string_view name) const
     {
         MWBase::World *world = MWBase::Environment::get().getWorld();
         return world->getGlobalVariableType(name);
     }
 
-    std::string InterpreterContext::getActionBinding(const std::string& targetAction) const
+    std::string InterpreterContext::getActionBinding(std::string_view targetAction) const
     {
         MWBase::InputManager* input = MWBase::Environment::get().getInputManager();
         std::vector<int> actions = input->getActionKeySorting ();
@@ -623,9 +633,10 @@ namespace MWScript
         return  MWBase::Environment::get().getWorld()->getCellName();
     }
 
-    void InterpreterContext::executeActivation(MWWorld::Ptr ptr, MWWorld::Ptr actor)
+    void InterpreterContext::executeActivation(const MWWorld::Ptr& ptr, const MWWorld::Ptr& actor)
     {
-        std::shared_ptr<MWWorld::Action> action = (ptr.getClass().activate(ptr, actor));
+        MWBase::Environment::get().getLuaManager()->objectActivated(ptr, actor);
+        std::unique_ptr<MWWorld::Action> action = (ptr.getClass().activate(ptr, actor));
         action->execute (actor);
         if (action->getTarget() != MWWorld::Ptr() && action->getTarget() != ptr)
         {
@@ -633,7 +644,7 @@ namespace MWScript
         }
     }
 
-    int InterpreterContext::getMemberShort (const std::string& id, const std::string& name,
+    int InterpreterContext::getMemberShort(std::string_view id, std::string_view name,
         bool global) const
     {
         std::string scriptId (id);
@@ -643,7 +654,7 @@ namespace MWScript
         return locals.mShorts[findLocalVariableIndex (scriptId, name, 's')];
     }
 
-    int InterpreterContext::getMemberLong (const std::string& id, const std::string& name,
+    int InterpreterContext::getMemberLong(std::string_view id, std::string_view name,
         bool global) const
     {
         std::string scriptId (id);
@@ -653,7 +664,7 @@ namespace MWScript
         return locals.mLongs[findLocalVariableIndex (scriptId, name, 'l')];
     }
 
-    float InterpreterContext::getMemberFloat (const std::string& id, const std::string& name,
+    float InterpreterContext::getMemberFloat(std::string_view id, std::string_view name,
         bool global) const
     {
         std::string scriptId (id);
@@ -663,7 +674,7 @@ namespace MWScript
         return locals.mFloats[findLocalVariableIndex (scriptId, name, 'f')];
     }
 
-    void InterpreterContext::setMemberShort (const std::string& id, const std::string& name,
+    void InterpreterContext::setMemberShort(std::string_view id, std::string_view name,
         int value, bool global)
     {
         std::string scriptId (id);
@@ -702,7 +713,7 @@ namespace MWScript
         */
     }
 
-    void InterpreterContext::setMemberLong (const std::string& id, const std::string& name, int value, bool global)
+    void InterpreterContext::setMemberLong(std::string_view id, std::string_view name, int value, bool global)
     {
         std::string scriptId (id);
 
@@ -711,7 +722,7 @@ namespace MWScript
         locals.mLongs[findLocalVariableIndex (scriptId, name, 'l')] = value;
     }
 
-    void InterpreterContext::setMemberFloat (const std::string& id, const std::string& name, float value, bool global)
+    void InterpreterContext::setMemberFloat(std::string_view id, std::string_view name, float value, bool global)
     {
         std::string scriptId (id);
 
@@ -720,7 +731,7 @@ namespace MWScript
         locals.mFloats[findLocalVariableIndex (scriptId, name, 'f')] = value;
     }
 
-    MWWorld::Ptr InterpreterContext::getReference(bool required)
+    MWWorld::Ptr InterpreterContext::getReference(bool required) const
     {
         return getReferenceImp ("", true, required);
     }

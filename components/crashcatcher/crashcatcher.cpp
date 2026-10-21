@@ -56,8 +56,6 @@ static const char exec_err[] = "!!! Failed to exec debug process\n";
 
 static char argv0[PATH_MAX];
 
-static char altstack[SIGSTKSZ];
-
 
 static struct {
     int signum;
@@ -475,9 +473,10 @@ int crashCatcherInstallHandlers(int argc, char **argv, int num_signals, int *sig
 
     /* Set an alternate signal stack so SIGSEGVs caused by stack overflows
      * still run */
+    static char* altstack = new char [SIGSTKSZ];
     altss.ss_sp = altstack;
     altss.ss_flags = 0;
-    altss.ss_size = sizeof(altstack);
+    altss.ss_size = SIGSTKSZ;
     sigaltstack(&altss, nullptr);
 
     memset(&sa, 0, sizeof(sa));
@@ -563,9 +562,6 @@ static bool is_debugger_present()
 
 void crashCatcherInstall(int argc, char **argv, const std::string &crashLogPath)
 {
-    if (const auto env = std::getenv("OPENMW_DISABLE_CRASH_CATCHER"))
-        if (std::atol(env) != 0)
-            return;
     if ((argc == 2 && strcmp(argv[1], crash_switch) == 0) || !is_debugger_present())
     {
         int s[5] = { SIGSEGV, SIGILL, SIGFPE, SIGBUS, SIGABRT };

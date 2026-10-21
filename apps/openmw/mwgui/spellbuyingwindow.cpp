@@ -16,6 +16,7 @@
 /*
     End of tes3mp addition
 */
+#include <components/misc/stringops.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/world.hpp"
@@ -26,8 +27,9 @@
 #include "../mwworld/containerstore.hpp"
 #include "../mwworld/esmstore.hpp"
 
-#include "../mwmechanics/creaturestats.hpp"
 #include "../mwmechanics/actorutil.hpp"
+#include "../mwmechanics/spells.hpp"
+#include "../mwmechanics/creaturestats.hpp"
 
 namespace MWGui
 {
@@ -112,10 +114,8 @@ namespace MWGui
 
         std::vector<const ESM::Spell*> spellsToSort;
 
-        for (MWMechanics::Spells::TIterator iter = merchantSpells.begin(); iter!=merchantSpells.end(); ++iter)
+        for (const ESM::Spell* spell : merchantSpells)
         {
-            const ESM::Spell* spell = iter->first;
-
             if (spell->mData.mType!=ESM::Spell::ST_Spell)
                 continue; // don't try to sell diseases, curses or powers
 
@@ -128,10 +128,10 @@ namespace MWGui
                     continue;
             }
 
-            if (playerHasSpell(iter->first->mId))
+            if (playerHasSpell(spell->mId))
                 continue;
 
-            spellsToSort.push_back(iter->first);
+            spellsToSort.push_back(spell);
         }
 
         std::stable_sort(spellsToSort.begin(), spellsToSort.end(), sortSpells);

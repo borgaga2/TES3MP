@@ -1,4 +1,5 @@
 #version 120
+#pragma import_defines(FORCE_OPAQUE)
 
 #if @useGPUShader4
     #extension GL_EXT_gpu_shader4: require
@@ -9,20 +10,17 @@ uniform sampler2D diffuseMap;
 varying vec2 diffuseMapUV;
 #endif
 
-uniform bool noAlpha;
-
-#if @radialFog
 varying float euclideanDepth;
-#else
 varying float linearDepth;
-#endif
 
 uniform bool useFalloff;
+uniform vec2 screenRes;
 
 varying float passFalloff;
 
 #include "vertexcolors.glsl"
 #include "alpha.glsl"
+#include "fog.glsl"
 
 void main()
 {
@@ -40,16 +38,9 @@ void main()
 
     alphaTest();
 
-#if @radialFog
-    float fogValue = clamp((euclideanDepth - gl_Fog.start) * gl_Fog.scale, 0.0, 1.0);
-#else
-    float fogValue = clamp((linearDepth - gl_Fog.start) * gl_Fog.scale, 0.0, 1.0);
+#if defined(FORCE_OPAQUE) && FORCE_OPAQUE
+    gl_FragData[0].a = 1.0;
 #endif
 
-#if @translucentFramebuffer
-    if (noAlpha)
-        gl_FragData[0].a = 1.0;
-#endif
-
-    gl_FragData[0].xyz = mix(gl_FragData[0].xyz, gl_Fog.color.xyz, fogValue);
+    gl_FragData[0] = applyFogAtDist(gl_FragData[0], euclideanDepth, linearDepth);
 }

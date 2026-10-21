@@ -7,6 +7,7 @@
 #include <MyGUI_Button.h>
 
 #include <components/debug/debuglog.hpp>
+#include <components/widgets/box.hpp>
 #include <components/widgets/list.hpp>
 #include <components/translation/translation.hpp>
 
@@ -38,6 +39,7 @@
 
 #include "bookpage.hpp"
 #include "textcolours.hpp"
+#include "tooltips.hpp"
 
 #include "journalbooks.hpp" // to_utf8_span
 
@@ -72,6 +74,8 @@ namespace MWGui
     PersuasionDialog::PersuasionDialog(ResponseCallback* callback)
         : WindowModal("openmw_persuasion_dialog.layout")
         , mCallback(callback)
+        , mInitialGoldLabelWidth(0)
+        , mInitialMainWidgetWidth(0)
     {
         getWidget(mCancelButton, "CancelButton");
         getWidget(mAdmireButton, "AdmireButton");
@@ -81,6 +85,26 @@ namespace MWGui
         getWidget(mBribe100Button, "Bribe100Button");
         getWidget(mBribe1000Button, "Bribe1000Button");
         getWidget(mGoldLabel, "GoldLabel");
+        getWidget(mActionsBox, "ActionsBox");
+
+        int totalHeight = 3;
+        adjustAction(mAdmireButton, totalHeight);
+        adjustAction(mIntimidateButton, totalHeight);
+        adjustAction(mTauntButton, totalHeight);
+        adjustAction(mBribe10Button, totalHeight);
+        adjustAction(mBribe100Button, totalHeight);
+        adjustAction(mBribe1000Button, totalHeight);
+        totalHeight += 3;
+
+        int diff = totalHeight - mActionsBox->getSize().height;
+        if (diff > 0)
+        {
+            auto mainWidgetSize = mMainWidget->getSize();
+            mMainWidget->setSize(mainWidgetSize.width, mainWidgetSize.height + diff);
+        }
+
+        mInitialGoldLabelWidth = mActionsBox->getSize().width - mCancelButton->getSize().width - 8;
+        mInitialMainWidgetWidth = mMainWidget->getSize().width;
 
         mCancelButton->eventMouseButtonClick += MyGUI::newDelegate(this, &PersuasionDialog::onCancel);
         mAdmireButton->eventMouseButtonClick += MyGUI::newDelegate(this, &PersuasionDialog::onPersuade);
@@ -89,6 +113,14 @@ namespace MWGui
         mBribe10Button->eventMouseButtonClick += MyGUI::newDelegate(this, &PersuasionDialog::onPersuade);
         mBribe100Button->eventMouseButtonClick += MyGUI::newDelegate(this, &PersuasionDialog::onPersuade);
         mBribe1000Button->eventMouseButtonClick += MyGUI::newDelegate(this, &PersuasionDialog::onPersuade);
+    }
+
+    void PersuasionDialog::adjustAction(MyGUI::Widget* action, int& totalHeight)
+    {
+        const int lineHeight = MWBase::Environment::get().getWindowManager()->getFontHeight() + 2;
+        auto currentCoords = action->getCoord();
+        action->setCoord(currentCoords.left, totalHeight, currentCoords.width, lineHeight);
+        totalHeight += lineHeight;
     }
 
     void PersuasionDialog::onCancel(MyGUI::Widget *sender)
@@ -127,6 +159,13 @@ namespace MWGui
         mBribe1000Button->setEnabled (playerGold >= 1000);
 
         mGoldLabel->setCaptionWithReplacing("#{sGold}: " + MyGUI::utility::toString(playerGold));
+
+        int diff = mGoldLabel->getRequestedSize().width - mInitialGoldLabelWidth;
+        if (diff > 0)
+            mMainWidget->setSize(mInitialMainWidgetWidth + diff, mMainWidget->getSize().height);
+        else
+            mMainWidget->setSize(mInitialMainWidgetWidth, mMainWidget->getSize().height);
+
         WindowModal::onOpen();
     }
 
@@ -360,8 +399,7 @@ namespace MWGui
     {
         if (!mScrollBar->getVisible())
             return;
-        mScrollBar->setScrollPosition(std::min(static_cast<int>(mScrollBar->getScrollRange()-1),
-                                               std::max(0, static_cast<int>(mScrollBar->getScrollPosition() - _rel*0.3))));
+        mScrollBar->setScrollPosition(std::clamp<int>(mScrollBar->getScrollPosition() - _rel*0.3, 0, mScrollBar->getScrollRange() - 1));
         onScrollbarMoved(mScrollBar, mScrollBar->getScrollPosition());
     }
 
@@ -394,15 +432,15 @@ namespace MWGui
 
         const MWWorld::Store<ESM::GameSetting> &gmst = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>();
 
-        const std::string sPersuasion = gmst.find("sPersuasion")->mValue.getString();
-        const std::string sCompanionShare = gmst.find("sCompanionShare")->mValue.getString();
-        const std::string sBarter = gmst.find("sBarter")->mValue.getString();
-        const std::string sSpells = gmst.find("sSpells")->mValue.getString();
-        const std::string sTravel = gmst.find("sTravel")->mValue.getString();
-        const std::string sSpellMakingMenuTitle = gmst.find("sSpellMakingMenuTitle")->mValue.getString();
-        const std::string sEnchanting = gmst.find("sEnchanting")->mValue.getString();
-        const std::string sServiceTrainingTitle = gmst.find("sServiceTrainingTitle")->mValue.getString();
-        const std::string sRepair = gmst.find("sRepair")->mValue.getString();
+        const std::string& sPersuasion = gmst.find("sPersuasion")->mValue.getString();
+        const std::string& sCompanionShare = gmst.find("sCompanionShare")->mValue.getString();
+        const std::string& sBarter = gmst.find("sBarter")->mValue.getString();
+        const std::string& sSpells = gmst.find("sSpells")->mValue.getString();
+        const std::string& sTravel = gmst.find("sTravel")->mValue.getString();
+        const std::string& sSpellMakingMenuTitle = gmst.find("sSpellMakingMenuTitle")->mValue.getString();
+        const std::string& sEnchanting = gmst.find("sEnchanting")->mValue.getString();
+        const std::string& sServiceTrainingTitle = gmst.find("sServiceTrainingTitle")->mValue.getString();
+        const std::string& sRepair = gmst.find("sRepair")->mValue.getString();
 
         if (topic != sPersuasion && topic != sCompanionShare && topic != sBarter 
          && topic != sSpells && topic != sTravel && topic != sSpellMakingMenuTitle 
@@ -600,7 +638,7 @@ namespace MWGui
         mHistoryContents.clear();
     }
 
-    bool DialogueWindow::setKeywords(std::list<std::string> keyWords)
+    bool DialogueWindow::setKeywords(const std::list<std::string>& keyWords)
     {
         if (mKeywords == keyWords && isCompanion() == mIsCompanion)
             return false;
@@ -620,13 +658,13 @@ namespace MWGui
 
         int services = mPtr.getClass().getServices(mPtr);
 
-        bool travel = (mPtr.getTypeName() == typeid(ESM::NPC).name() && !mPtr.get<ESM::NPC>()->mBase->getTransport().empty())
-                || (mPtr.getTypeName() == typeid(ESM::Creature).name() && !mPtr.get<ESM::Creature>()->mBase->getTransport().empty());
+        bool travel = (mPtr.getType() == ESM::NPC::sRecordId && !mPtr.get<ESM::NPC>()->mBase->getTransport().empty())
+                || (mPtr.getType() == ESM::Creature::sRecordId && !mPtr.get<ESM::Creature>()->mBase->getTransport().empty());
 
         const MWWorld::Store<ESM::GameSetting> &gmst =
             MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>();
 
-        if (mPtr.getTypeName() == typeid(ESM::NPC).name())
+        if (mPtr.getType() == ESM::NPC::sRecordId)
             mTopicsList->addItem(gmst.find("sPersuasion")->mValue.getString());
 
         if (services & ESM::NPC::AllItems)
@@ -729,10 +767,10 @@ namespace MWGui
             Goodbye* link = new Goodbye();
             link->eventActivated += MyGUI::newDelegate(this, &DialogueWindow::onGoodbyeActivated);
             mLinks.push_back(link);
-            std::string goodbye = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("sGoodbye")->mValue.getString();
+            const std::string& goodbye = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("sGoodbye")->mValue.getString();
             BookTypesetter::Style* questionStyle = typesetter->createHotStyle(body, textColours.answer, textColours.answerOver,
-                                                                              textColours.answerPressed,
-                                                                              TypesetBook::InteractiveId(link));
+                textColours.answerPressed,
+                TypesetBook::InteractiveId(link));
             typesetter->lineBreak();
             typesetter->write(questionStyle, to_utf8_span(goodbye.c_str()));
         }

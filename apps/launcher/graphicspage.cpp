@@ -1,8 +1,6 @@
 #include "graphicspage.hpp"
 
-#include <QDesktopWidget>
 #include <QMessageBox>
-#include <QDir>
 #include <QScreen>
 
 #ifdef MAC_OS_X_VERSION_MIN_REQUIRED
@@ -14,8 +12,7 @@
 #include <SDL_video.h>
 
 #include <numeric>
-
-#include <components/files/configurationmanager.hpp>
+#include <array>
 
 QString getAspect(int x, int y)
 {
@@ -43,12 +40,11 @@ Launcher::GraphicsPage::GraphicsPage(QWidget *parent)
     customWidthSpinBox->setMaximum(res.width());
     customHeightSpinBox->setMaximum(res.height());
 
-    connect(fullScreenCheckBox, SIGNAL(stateChanged(int)), this, SLOT(slotFullScreenChanged(int)));
+    connect(windowModeComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(slotFullScreenChanged(int)));
     connect(standardRadioButton, SIGNAL(toggled(bool)), this, SLOT(slotStandardToggled(bool)));
     connect(screenComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(screenChanged(int)));
     connect(framerateLimitCheckBox, SIGNAL(toggled(bool)), this, SLOT(slotFramerateLimitToggled(bool)));
     connect(shadowDistanceCheckBox, SIGNAL(toggled(bool)), this, SLOT(slotShadowDistLimitToggled(bool)));
-
 }
 
 bool Launcher::GraphicsPage::setupSDL()
@@ -96,8 +92,10 @@ bool Launcher::GraphicsPage::loadSettings()
     if (Settings::Manager::getBool("vsync", "Video"))
         vSyncCheckBox->setCheckState(Qt::Checked);
 
-    if (Settings::Manager::getBool("fullscreen", "Video"))
-        fullScreenCheckBox->setCheckState(Qt::Checked);
+    size_t windowMode = static_cast<size_t>(Settings::Manager::getInt("window mode", "Video"));
+    if (windowMode > static_cast<size_t>(Settings::WindowMode::Windowed))
+        windowMode = 0;
+    windowModeComboBox->setCurrentIndex(windowMode);
 
     if (Settings::Manager::getBool("window border", "Video"))
         windowBorderCheckBox->setCheckState(Qt::Checked);
@@ -185,9 +183,9 @@ void Launcher::GraphicsPage::saveSettings()
     if (cVSync != Settings::Manager::getBool("vsync", "Video"))
         Settings::Manager::setBool("vsync", "Video", cVSync);
 
-    bool cFullScreen = fullScreenCheckBox->checkState();
-    if (cFullScreen != Settings::Manager::getBool("fullscreen", "Video"))
-        Settings::Manager::setBool("fullscreen", "Video", cFullScreen);
+    int cWindowMode = windowModeComboBox->currentIndex();
+    if (cWindowMode != Settings::Manager::getInt("window mode", "Video"))
+        Settings::Manager::setInt("window mode", "Video", cWindowMode);
 
     bool cWindowBorder = windowBorderCheckBox->checkState();
     if (cWindowBorder != Settings::Manager::getBool("window border", "Video"))
@@ -233,7 +231,9 @@ void Launcher::GraphicsPage::saveSettings()
 
     // Lighting
     static std::array<std::string, 3> lightingMethodMap = {"legacy", "shaders compatibility", "shaders"};
-    Settings::Manager::setString("lighting method", "Shaders", lightingMethodMap[lightingMethodComboBox->currentIndex()]);
+    const std::string& cLightingMethod = lightingMethodMap[lightingMethodComboBox->currentIndex()];
+    if (cLightingMethod != Settings::Manager::getString("lighting method", "Shaders"))
+        Settings::Manager::setString("lighting method", "Shaders", cLightingMethod);
 
     // Shadows
     int cShadowDist = shadowDistanceCheckBox->checkState() != Qt::Unchecked ? shadowDistanceSpinBox->value() : 0;
@@ -357,9 +357,9 @@ void Launcher::GraphicsPage::screenChanged(int screen)
     }
 }
 
-void Launcher::GraphicsPage::slotFullScreenChanged(int state)
+void Launcher::GraphicsPage::slotFullScreenChanged(int mode)
 {
-    if (state == Qt::Checked) {
+    if (mode == static_cast<int>(Settings::WindowMode::Fullscreen) || mode == static_cast<int>(Settings::WindowMode::WindowedFullscreen)) {
         standardRadioButton->toggle();
         customRadioButton->setEnabled(false);
         customWidthSpinBox->setEnabled(false);

@@ -1,6 +1,7 @@
 #ifndef GAME_RENDER_LOCALMAP_H
 #define GAME_RENDER_LOCALMAP_H
 
+#include <cstdint>
 #include <set>
 #include <vector>
 #include <map>
@@ -30,6 +31,8 @@ namespace osg
 
 namespace MWRender
 {
+    class LocalMapRenderToTexture;
+
     ///
     /// \brief Local map rendering
     ///
@@ -50,19 +53,13 @@ namespace MWRender
         void requestMap (const MWWorld::CellStore* cell);
 
         void addCell(MWWorld::CellStore* cell);
+        void removeExteriorCell(int x, int y);
 
         void removeCell (MWWorld::CellStore* cell);
 
         osg::ref_ptr<osg::Texture2D> getMapTexture (int x, int y);
 
         osg::ref_ptr<osg::Texture2D> getFogOfWarTexture (int x, int y);
-
-        void removeCamera(osg::Camera* cam);
-
-        /**
-         * Indicates a camera has been queued for rendering and can be cleaned up in the next frame. For internal use only.
-         */
-        void markForRemoval(osg::Camera* cam);
 
         /**
          * Removes cameras that have already been rendered. Should be called every frame to ensure that
@@ -103,36 +100,41 @@ namespace MWRender
         osg::ref_ptr<osg::Group> mRoot;
         osg::ref_ptr<osg::Node> mSceneRoot;
 
-        typedef std::vector< osg::ref_ptr<osg::Camera> > CameraVector;
-
-        CameraVector mActiveCameras;
-
-        CameraVector mCamerasPendingRemoval;
+        typedef std::vector< osg::ref_ptr<LocalMapRenderToTexture> > RTTVector;
+        RTTVector mLocalMapRTTs;
 
         typedef std::set<std::pair<int, int> > Grid;
         Grid mCurrentGrid;
 
+        enum NeighbourCellFlag : std::uint8_t
+        {
+            NeighbourCellTopLeft = 1,
+            NeighbourCellTopCenter = 1 << 1,
+            NeighbourCellTopRight = 1 << 2,
+            NeighbourCellMiddleLeft = 1 << 3,
+            NeighbourCellMiddleRight = 1 << 4,
+            NeighbourCellBottomLeft = 1 << 5,
+            NeighbourCellBottomCenter = 1 << 6,
+            NeighbourCellBottomRight = 1 << 7,
+        };
+
         struct MapSegment
         {
-            MapSegment();
-            ~MapSegment();
-
             void initFogOfWar();
             void loadFogOfWar(const ESM::FogTexture& fog);
             void saveFogOfWar(ESM::FogTexture& fog) const;
             void createFogOfWarTexture();
 
+            std::uint8_t mLastRenderNeighbourFlags = 0;
+            bool mHasFogState = false;
             osg::ref_ptr<osg::Texture2D> mMapTexture;
             osg::ref_ptr<osg::Texture2D> mFogOfWarTexture;
             osg::ref_ptr<osg::Image> mFogOfWarImage;
-
-            Grid mGrid; // the grid that was active at the time of rendering this segment
-
-            bool mHasFogState;
         };
 
         typedef std::map<std::pair<int, int>, MapSegment> SegmentMap;
-        SegmentMap mSegments;
+        SegmentMap mExteriorSegments;
+        SegmentMap mInteriorSegments;
 
         int mMapResolution;
 
@@ -147,14 +149,15 @@ namespace MWRender
         float mAngle;
         const osg::Vec2f rotatePoint(const osg::Vec2f& point, const osg::Vec2f& center, const float angle);
 
-        void requestExteriorMap(const MWWorld::CellStore* cell);
+        void requestExteriorMap(const MWWorld::CellStore* cell, MapSegment& segment);
         void requestInteriorMap(const MWWorld::CellStore* cell);
 
-        osg::ref_ptr<osg::Camera> createOrthographicCamera(float left, float top, float width, float height, const osg::Vec3d& upVector, float zmin, float zmax);
-        void setupRenderToTexture(osg::ref_ptr<osg::Camera> camera, int x, int y);
+        void setupRenderToTexture(int segment_x, int segment_y, float left, float top, const osg::Vec3d& upVector, float zmin, float zmax);
 
         bool mInterior;
         osg::BoundingBox mBounds;
+
+        std::uint8_t getExteriorNeighbourFlags(int cellX, int cellY) const;
     };
 
 }

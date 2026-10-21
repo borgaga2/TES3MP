@@ -3,7 +3,6 @@
 #include <algorithm>
 
 #include <osg/Array>
-#include <osg/Geode>
 #include <osg/Geometry>
 #include <osg/Group>
 #include <osg/PositionAttitudeTransform>
@@ -11,11 +10,11 @@
 
 #include <components/sceneutil/pathgridutil.hpp>
 
-#include "../../model/world/cell.hpp"
 #include "../../model/world/commands.hpp"
 #include "../../model/world/commandmacro.hpp"
 #include "../../model/world/data.hpp"
 #include "../../model/world/idtree.hpp"
+#include "worldspacewidget.hpp"
 
 namespace CSVRender
 {
@@ -40,10 +39,13 @@ namespace CSVRender
         return mPathgrid;
     }
 
-    QString PathgridTag::getToolTip(bool hideBasics) const
+    QString PathgridTag::getToolTip(bool /*hideBasics*/, const WorldspaceHitResult& hit) const
     {
         QString text("Pathgrid: ");
         text += mPathgrid->getId().c_str();
+        text += " (";
+        text += QString::number(SceneUtil::getPathgridNode(static_cast<unsigned short>(hit.index0)));
+        text += ")";
 
         return text;
     }
@@ -73,8 +75,8 @@ namespace CSVRender
         mBaseNode->setNodeMask(Mask_Pathgrid);
         mParent->addChild(mBaseNode);
 
-        mPathgridGeode = new osg::Geode();
-        mBaseNode->addChild(mPathgridGeode);
+        mPathgridGroup = new osg::Group();
+        mBaseNode->addChild(mPathgridGroup);
 
         recreateGeometry();
 
@@ -218,7 +220,7 @@ namespace CSVRender
         mUseOffset = false;
         mMoveOffset.set(0, 0, 0);
 
-        mPathgridGeode->removeDrawable(mDragGeometry);
+        mPathgridGroup->removeChild(mDragGeometry);
         mDragGeometry = nullptr;
     }
 
@@ -520,7 +522,7 @@ namespace CSVRender
 
             removePathgridGeometry();
             mPathgridGeometry = SceneUtil::createPathgridGeometry(*source);
-            mPathgridGeode->addDrawable(mPathgridGeometry);
+            mPathgridGroup->addChild(mPathgridGeometry);
 
             createSelectedGeometry(*source);
         }
@@ -549,14 +551,14 @@ namespace CSVRender
         removeSelectedGeometry();
 
         mSelectedGeometry = SceneUtil::createPathgridSelectedWireframe(source, mSelected);
-        mPathgridGeode->addDrawable(mSelectedGeometry);
+        mPathgridGroup->addChild(mSelectedGeometry);
     }
 
     void Pathgrid::removePathgridGeometry()
     {
         if (mPathgridGeometry)
         {
-            mPathgridGeode->removeDrawable(mPathgridGeometry);
+            mPathgridGroup->removeChild(mPathgridGeometry);
             mPathgridGeometry = nullptr;
         }
     }
@@ -565,7 +567,7 @@ namespace CSVRender
     {
         if (mSelectedGeometry)
         {
-            mPathgridGeode->removeDrawable(mSelectedGeometry);
+            mPathgridGroup->removeChild(mSelectedGeometry);
             mSelectedGeometry = nullptr;
         }
     }
@@ -573,7 +575,7 @@ namespace CSVRender
     void Pathgrid::createDragGeometry(const osg::Vec3f& start, const osg::Vec3f& end, bool valid)
     {
         if (mDragGeometry)
-            mPathgridGeode->removeDrawable(mDragGeometry);
+            mPathgridGroup->removeChild(mDragGeometry);
 
         mDragGeometry = new osg::Geometry();
 
@@ -601,7 +603,7 @@ namespace CSVRender
         mDragGeometry->addPrimitiveSet(indices);
         mDragGeometry->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
 
-        mPathgridGeode->addDrawable(mDragGeometry);
+        mPathgridGroup->addChild(mDragGeometry);
     }
 
     const CSMWorld::Pathgrid* Pathgrid::getPathgridSource()

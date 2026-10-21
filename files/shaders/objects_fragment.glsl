@@ -1,4 +1,5 @@
 #version 120
+#pragma import_defines(FORCE_OPAQUE)
 
 #if @useUBO
     #extension GL_ARB_uniform_buffer_object : require
@@ -57,11 +58,12 @@ uniform vec2 envMapLumaBias;
 uniform mat2 bumpMapMatrix;
 #endif
 
-uniform bool simpleWater;
-uniform bool noAlpha;
+#if @glossMap
+uniform sampler2D glossMap;
+varying vec2 glossMapUV;
+#endif
 
-varying float euclideanDepth;
-varying float linearDepth;
+uniform vec2 screenRes;
 
 #define PER_PIXEL_LIGHTING (@normalMap || @forcePPL)
 
@@ -71,14 +73,24 @@ centroid varying vec3 shadowDiffuseLighting;
 #else
 uniform float emissiveMult;
 #endif
+uniform float specStrength;
 varying vec3 passViewPos;
 varying vec3 passNormal;
+
+#if @additiveBlending
+#define ADDITIVE_BLENDING
+#endif
 
 #include "vertexcolors.glsl"
 #include "shadows_fragment.glsl"
 #include "lighting.glsl"
 #include "parallax.glsl"
 #include "alpha.glsl"
+#include "fog.glsl"
+
+#if @softParticles
+#include "softparticles.glsl"
+#endif
 
 void main()
 {
@@ -86,19 +98,23 @@ void main()
     vec2 adjustedDiffuseUV = diffuseMapUV;
 #endif
 
+    vec3 worldNormal = normalize(passNormal);
+    vec3 viewVec = normalize(passViewPos.xyz);
+
 #if @normalMap
     vec4 normalTex = texture2D(normalMap, normalMapUV);
 
-    vec3 normalizedNormal = normalize(passNormal);
+    vec3 normalizedNormal = worldNormal;
     vec3 normalizedTangent = normalize(passTangent.xyz);
     vec3 binormal = cross(normalizedTangent, normalizedNormal) * passTangent.w;
     mat3 tbnTranspose = mat3(normalizedTangent, binormal, normalizedNormal);
 
-    vec3 viewNormal = gl_NormalMatrix * normalize(tbnTranspose * (normalTex.xyz * 2.0 - 1.0));
+    worldNormal = normalize(tbnTranspose * (normalTex.xyz * 2.0 - 1.0));
+    vec3 viewNormal = gl_NormalMatrix * worldNormal;
 #endif
 
-#if (!@normalMap && (@parallax || @forcePPL))
-    vec3 viewNormal = gl_NormalMatrix * normalize(passNormal);
+#if (!@normalMap && (@parallax || @forcePPL || @softParticles))
+    vec3 viewNormal = gl_NormalMatrix * worldNormal;
 #endif
 
 #if @parallax
@@ -113,7 +129,9 @@ void main()
 #if 1
     // fetch a new normal using updated coordinates
     normalTex = texture2D(normalMap, adjustedDiffuseUV);
-    viewNormal = gl_NormalMatrix * normalize(tbnTranspose * (normalTex.xyz * 2.0 - 1.0));
+
+    worldNormal = normalize(tbnTranspose * (normalTex.xyz * 2.0 - 1.0));
+    viewNormal = gl_NormalMatrix * worldNormal;
 #endif
 
 #endif
@@ -127,19 +145,21 @@ void main()
 
     vec4 diffuseColor = getDiffuseColor();
     gl_FragData[0].a *= diffuseColor.a;
+
+#if @darkMap
+    gl_FragData[0] *= texture2D(darkMap, darkMapUV);
+    gl_FragData[0].a *= coveragePreservingAlphaScale(darkMap, darkMapUV);
+#endif
+
     alphaTest();
 
 #if @detailMap
     gl_FragData[0].xyz *= texture2D(detailMap, detailMapUV).xyz * 2.0;
 #endif
 
-#if @darkMap
-    gl_FragData[0].xyz *= texture2D(darkMap, darkMapUV).xyz;
-#endif
-
 #if @decalMap
     vec4 decalTex = texture2D(decalMap, decalMapUV);
-    gl_FragData[0].xyz = mix(gl_FragData[0].xyz, decalTex.xyz, decalTex.a);
+    gl_FragData[0].xyz = mix(gl_FragData[0].xyz, decalTex.xyz, decalTex.a * diffuseColor.a);
 #endif
 
 #if @envMap
@@ -149,7 +169,6 @@ void main()
 
 #if @normalMap
     // if using normal map + env map, take advantage of per-pixel normals for envTexCoordGen
-    vec3 viewVec = normalize(passViewPos.xyz);
     vec3 r = reflect( viewVec, viewNormal );
     float m = 2.0 * sqrt( r.x*r.x + r.y*r.y + (r.z+1.0)*(r.z+1.0) );
     envTexCoordGen = vec2(r.x/m + 0.5, r.y/m + 0.5);
@@ -161,13 +180,19 @@ void main()
     envLuma = clamp(bumpTex.b * envMapLumaBias.x + envMapLumaBias.y, 0.0, 1.0);
 #endif
 
+    vec3 envEffect = texture2D(envMap, envTexCoordGen).xyz * envMapColor.xyz * envLuma;
+
+#if @glossMap
+    envEffect *= texture2D(glossMap, glossMapUV).xyz;
+#endif
+
 #if @preLightEnv
-    gl_FragData[0].xyz += texture2D(envMap, envTexCoordGen).xyz * envMapColor.xyz * envLuma;
+    gl_FragData[0].xyz += envEffect;
 #endif
 
 #endif
 
-    float shadowing = unshadowedLightRatio(linearDepth);
+    float shadowing = unshadowedLightRatio(-passViewPos.z);
     vec3 lighting;
 #if !PER_PIXEL_LIGHTING
     lighting = passLighting + shadowDiffuseLighting * shadowing;
@@ -176,13 +201,14 @@ void main()
     doLighting(passViewPos, normalize(viewNormal), shadowing, diffuseLight, ambientLight);
     vec3 emission = getEmissionColor().xyz * emissiveMult;
     lighting = diffuseColor.xyz * diffuseLight + getAmbientColor().xyz * ambientLight + emission;
-    clampLightingResult(lighting);
 #endif
+
+    clampLightingResult(lighting);
 
     gl_FragData[0].xyz *= lighting;
 
 #if @envMap && !@preLightEnv
-    gl_FragData[0].xyz += texture2D(envMap, envTexCoordGen).xyz * envMapColor.xyz * envLuma;
+    gl_FragData[0].xyz += envEffect;
 #endif
 
 #if @emissiveMap
@@ -198,30 +224,28 @@ void main()
     vec3 matSpec = getSpecularColor().xyz;
 #endif
 
+    matSpec *= specStrength;
     if (matSpec != vec3(0.0))
     {
 #if (!@normalMap && !@parallax && !@forcePPL)
-        vec3 viewNormal = gl_NormalMatrix * normalize(passNormal);
+        vec3 viewNormal = gl_NormalMatrix * worldNormal;
 #endif
-        gl_FragData[0].xyz += getSpecular(normalize(viewNormal), normalize(passViewPos.xyz), shininess, matSpec) * shadowing;
+        gl_FragData[0].xyz += getSpecular(normalize(viewNormal), viewVec, shininess, matSpec) * shadowing;
     }
-#if @radialFog
-    float depth;
-    // For the less detailed mesh of simple water we need to recalculate depth on per-pixel basis
-    if (simpleWater)
-        depth = length(passViewPos);
-    else
-        depth = euclideanDepth;
-    float fogValue = clamp((depth - gl_Fog.start) * gl_Fog.scale, 0.0, 1.0);
-#else
-    float fogValue = clamp((linearDepth - gl_Fog.start) * gl_Fog.scale, 0.0, 1.0);
-#endif
-    gl_FragData[0].xyz = mix(gl_FragData[0].xyz, gl_Fog.color.xyz, fogValue);
 
-#if @translucentFramebuffer
+    gl_FragData[0] = applyFogAtPos(gl_FragData[0], passViewPos);
+
+#if !defined(FORCE_OPAQUE) && @softParticles
+    gl_FragData[0].a *= calcSoftParticleFade(viewVec, viewNormal, passViewPos);
+#endif
+
+#if defined(FORCE_OPAQUE) && FORCE_OPAQUE
     // having testing & blending isn't enough - we need to write an opaque pixel to be opaque
-    if (noAlpha)
-        gl_FragData[0].a = 1.0;
+    gl_FragData[0].a = 1.0;
+#endif
+
+#if !defined(FORCE_OPAQUE) && !@disableNormals
+    gl_FragData[1].xyz = worldNormal * 0.5 + 0.5;
 #endif
 
     applyShadowDebugOverlay();

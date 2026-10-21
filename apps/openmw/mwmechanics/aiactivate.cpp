@@ -1,6 +1,6 @@
 #include "aiactivate.hpp"
 
-#include <components/esm/aisequence.hpp>
+#include <components/esm3/aisequence.hpp>
 
 /*
     Start of tes3mp addition
@@ -25,8 +25,8 @@
 
 namespace MWMechanics
 {
-    AiActivate::AiActivate(const std::string &objectId)
-        : mObjectId(objectId)
+    AiActivate::AiActivate(std::string_view objectId, bool repeat)
+        : TypedAiPackage<AiActivate>(repeat), mObjectId(objectId)
     {
     }
 
@@ -56,7 +56,7 @@ namespace MWMechanics
             End of tes3mp change (major)
         */
 
-        actor.getClass().getCreatureStats(actor).setDrawState(DrawState_Nothing);
+        actor.getClass().getCreatureStats(actor).setDrawState(DrawState::Nothing);
 
         // Stop if the target doesn't exist
         // Really we should be checking whether the target is currently registered with the MechanicsManager
@@ -106,17 +106,18 @@ namespace MWMechanics
 
     void AiActivate::writeState(ESM::AiSequence::AiSequence &sequence) const
     {
-        std::unique_ptr<ESM::AiSequence::AiActivate> activate(new ESM::AiSequence::AiActivate());
+        auto activate = std::make_unique<ESM::AiSequence::AiActivate>();
         activate->mTargetId = mObjectId;
+        activate->mRepeat = getRepeat();
 
         ESM::AiSequence::AiPackageContainer package;
         package.mType = ESM::AiSequence::Ai_Activate;
-        package.mPackage = activate.release();
-        sequence.mPackages.push_back(package);
+        package.mPackage = std::move(activate);
+        sequence.mPackages.push_back(std::move(package));
     }
 
     AiActivate::AiActivate(const ESM::AiSequence::AiActivate *activate)
-        : mObjectId(activate->mTargetId)
+        : AiActivate(activate->mTargetId, activate->mRepeat)
     {
     }
 }

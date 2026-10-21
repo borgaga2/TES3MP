@@ -125,6 +125,20 @@ This is how Morrowind behaves.
 
 This setting can be toggled in Advanced tab of the launcher.
 
+classic calm spells behavior
+----------------------------------------
+
+:Type:		boolean
+:Range: 	True/False
+:Default:	True
+
+If this setting is true, Calm spells will take their target out of combat every frame.
+This means that a Calm spell of any magnitude will always take actors out of combat for the entirety of its duration.
+This is how Morrowind behaves without the Morrowind Code Patch. If this setting is off,
+Calm spells will only take their target out of combat once. Allowing them to re-engage if the spell was not sufficiently strong.
+
+This setting can be toggled in Advanced tab of the launcher.
+
 use magic item animations
 -------------------------
 
@@ -275,7 +289,7 @@ normalise race speed
 :Range:		True/False
 :Default:	False
 
-By default race weight is factored into horizontal movement speed like in Morrowind.
+By default race weight is factored into horizontal movement and magic projectile speed like in Morrowind.
 For example, an NPC which has 1.2 race weight is faster than an NPC with the exact same stats and weight 1.0 by a factor of 120%.
 If this setting is true, race weight is ignored in the calculations which allows for a movement behavior
 equivalent to the one introduced by the equivalent Morrowind Code Patch feature.
@@ -441,7 +455,7 @@ Some mods add harvestable container models. When this setting is enabled, activa
 When this setting is turned off or when activating a regular container, the menu will open as usual.
 
 allow actors to follow over water surface
----------------------
+-----------------------------------------
 
 :Type:		boolean
 :Range:		True/False
@@ -455,3 +469,51 @@ If disabled actors without the ability to swim will not follow other actors to t
     Has effect only when Navigator is enabled.
 
 This setting can be controlled in Advanced tab of the launcher.
+
+default actor pathfind half extents
+-----------------------------------
+
+:Type:		3D vector floating point
+:Range:		All components > 0
+:Default:	29.27999496459961 28.479997634887695 66.5
+
+Actor half extents used for exterior cells to generate navmesh.
+Changing the value will invalidate navmesh disk cache.
+
+day night switches
+------------------
+
+:Type:      boolean
+:Range:		True/False
+:Default:	True
+
+Some mods add models which change visuals based on time of day. When this setting is enabled, supporting models will automatically make use of Day/night state.
+
+unarmed creature attacks damage armor
+-------------------------------------
+
+:Type:		boolean
+:Range:		True/False
+:Default:	False
+
+If disabled unarmed creature attacks do not reduce armor condition, just as with vanilla engine.
+
+If enabled unarmed creature attacks reduce armor condition, the same as attacks from NPCs and armed creatures.
+
+This setting can be controlled in Advanced tab of the launcher, under Game Mechanics.
+
+actor collision shape type
+--------------------------
+
+:Type:		integer
+:Range:		0, 1, 2
+:Default:	0 (Axis-aligned bounding box)
+
+Collision is used for both physics simulation and navigation mesh generation for pathfinding.
+Cylinder gives the best consistency bewtween available navigation paths and ability to move by them.
+Changing this value affects navigation mesh generation therefore navigation mesh disk cache generated for one value
+will not be useful with another.
+
+* 0: Axis-aligned bounding box
+* 1: Rotating box
+* 2: Cylinder

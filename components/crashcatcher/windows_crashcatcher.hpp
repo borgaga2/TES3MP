@@ -3,10 +3,7 @@
 
 #include <string>
 
-#undef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-
+#include <components/windows.hpp>
 #include <components/crashcatcher/crashcatcher.hpp>
 
 namespace Crash
@@ -30,9 +27,17 @@ namespace Crash
     class CrashCatcher final
     {
     public:
+        static CrashCatcher* instance()
+        {
+            return sInstance;
+        }
 
-        CrashCatcher(int argc, char **argv, const std::string& crashLogPath);
+        CrashCatcher(int argc, char** argv, const std::string& dumpPath, const std::string& crashDumpName, const std::string& freezeDumpName);
         ~CrashCatcher();
+
+        void updateDumpPath(const std::string& dumpPath);
+
+        void updateDumpNames(const std::string& crashDumpName, const std::string& freezeDumpName);
 
     private:
 
@@ -59,7 +64,7 @@ namespace Crash
 
         void shmUnlock();
 
-        void startMonitorProcess(const std::string& crashLogPath);
+        void startMonitorProcess(const std::string& dumpPath, const std::string& crashDumpName, const std::string& freezeDumpName);
 
         void waitMonitor();
 

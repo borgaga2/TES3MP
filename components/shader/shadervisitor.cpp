@@ -1,27 +1,48 @@
 #include "shadervisitor.hpp"
 
+#include <unordered_set>
+#include <unordered_map>
+#include <set>
+
 #include <osg/AlphaFunc>
+#include <osg/BlendFunc>
 #include <osg/Geometry>
 #include <osg/GLExtensions>
 #include <osg/Material>
 #include <osg/Multisample>
 #include <osg/Texture>
 #include <osg/ValueObject>
+#include <osg/ColorMaski>
+
+#include <osgParticle/ParticleSystem>
 
 #include <osgUtil/TangentSpaceGenerator>
 
 #include <components/debug/debuglog.hpp>
 #include <components/misc/stringops.hpp>
+#include <components/misc/osguservalues.hpp>
+#include <components/stereo/stereomanager.hpp>
 #include <components/resource/imagemanager.hpp>
 #include <components/vfs/manager.hpp>
 #include <components/sceneutil/riggeometry.hpp>
 #include <components/sceneutil/morphgeometry.hpp>
+#include <components/sceneutil/depth.hpp>
+#include <components/sceneutil/riggeometryosgaextension.hpp>
 
 #include "removedalphafunc.hpp"
 #include "shadermanager.hpp"
 
 namespace Shader
 {
+    /**
+    * Miniature version of osg::StateSet used to track state added by the shader visitor which should be ignored when
+    * it's applied a second time, and removed when shaders are removed.
+    * Actual StateAttributes aren't kept as they're recoverable from the StateSet this is attached to - we just want
+    * the TypeMemberPair as that uniquely identifies which of those StateAttributes it was we're tracking.
+    * Not all StateSet features have been added yet - we implement an equivalently-named method to each of the StateSet
+    * methods called in createProgram, and implement new ones as they're needed.
+    * When expanding tracking to cover new things, ensure they're accounted for in ensureFFP.
+    */
     class AddedState : public osg::Object
     {
     public:
@@ -31,6 +52,7 @@ namespace Shader
             , mUniforms(rhs.mUniforms)
             , mModes(rhs.mModes)
             , mAttributes(rhs.mAttributes)
+            , mTextureModes(rhs.mTextureModes)
         {
         }
 
@@ -54,16 +76,44 @@ namespace Shader
         template<typename T>
         void setAttributeAndModes(osg::ref_ptr<T> attribute) { setAttributeAndModes(attribute.get()); }
 
+        void setTextureMode(unsigned int unit, osg::StateAttribute::GLMode mode) { mTextureModes[unit].emplace(mode); }
+        void setTextureAttribute(int unit, osg::StateAttribute::TypeMemberPair typeMemberPair) { mTextureAttributes[unit].emplace(typeMemberPair); }
+
+        void setTextureAttribute(unsigned int unit, const osg::StateAttribute* attribute)
+        {
+            mTextureAttributes[unit].emplace(attribute->getTypeMemberPair());
+        }
+        template<typename T>
+        void setTextureAttribute(unsigned int unit, osg::ref_ptr<T> attribute) { setTextureAttribute(unit, attribute.get()); }
+
+        void setTextureAttributeAndModes(unsigned int unit, const osg::StateAttribute* attribute)
+        {
+            setTextureAttribute(unit, attribute);
+            InterrogateModesHelper helper(this, unit);
+            attribute->getModeUsage(helper);
+        }
+        template<typename T>
+        void setTextureAttributeAndModes(unsigned int unit, osg::ref_ptr<T> attribute) { setTextureAttributeAndModes(unit, attribute.get()); }
+
         bool hasUniform(const std::string& name) { return mUniforms.count(name); }
         bool hasMode(osg::StateAttribute::GLMode mode) { return mModes.count(mode); }
-        bool hasAttribute(osg::StateAttribute::TypeMemberPair typeMemberPair) { return mAttributes.count(typeMemberPair); }
+        bool hasAttribute(const osg::StateAttribute::TypeMemberPair &typeMemberPair) { return mAttributes.count(typeMemberPair); }
         bool hasAttribute(osg::StateAttribute::Type type, unsigned int member) { return hasAttribute(osg::StateAttribute::TypeMemberPair(type, member)); }
+        bool hasTextureMode(int unit, osg::StateAttribute::GLMode mode)
+        {
+            auto it = mTextureModes.find(unit);
+            if (it == mTextureModes.cend())
+                return false;
+
+            return it->second.count(mode);
+        }
 
         const std::set<osg::StateAttribute::TypeMemberPair>& getAttributes() { return mAttributes; }
+        const std::unordered_map<unsigned int, std::set<osg::StateAttribute::TypeMemberPair>>& getTextureAttributes() { return mTextureAttributes; }
 
         bool empty()
         {
-            return mUniforms.empty() && mModes.empty() && mAttributes.empty();
+            return mUniforms.empty() && mModes.empty() && mAttributes.empty() && mTextureModes.empty() && mTextureAttributes.empty();
         }
 
         META_Object(Shader, AddedState)
@@ -72,17 +122,26 @@ namespace Shader
         class InterrogateModesHelper : public osg::StateAttribute::ModeUsage
         {
         public:
-            InterrogateModesHelper(AddedState* tracker) : mTracker(tracker) {}
+            InterrogateModesHelper(AddedState* tracker, unsigned int textureUnit = 0)
+                : mTracker(tracker)
+                , mTextureUnit(textureUnit)
+            {}
             void usesMode(osg::StateAttribute::GLMode mode) override { mTracker->setMode(mode); }
-            void usesTextureMode(osg::StateAttribute::GLMode mode) override {}
+            void usesTextureMode(osg::StateAttribute::GLMode mode) override { mTracker->setTextureMode(mTextureUnit, mode); }
 
         private:
             AddedState* mTracker;
+            unsigned int mTextureUnit;
         };
 
+        using ModeSet = std::unordered_set<osg::StateAttribute::GLMode>;
+        using AttributeSet = std::set<osg::StateAttribute::TypeMemberPair>;
+
         std::unordered_set<std::string> mUniforms;
-        std::unordered_set<osg::StateAttribute::GLMode> mModes;
-        std::set<osg::StateAttribute::TypeMemberPair> mAttributes;
+        ModeSet mModes;
+        AttributeSet mAttributes;
+        std::unordered_map<unsigned int, ModeSet> mTextureModes;
+        std::unordered_map<unsigned int, AttributeSet> mTextureAttributes;
     };
 
     ShaderVisitor::ShaderRequirements::ShaderRequirements()
@@ -94,15 +153,13 @@ namespace Shader
         , mAlphaFunc(GL_ALWAYS)
         , mAlphaRef(1.0)
         , mAlphaBlend(false)
+        , mBlendFuncOverridden(false)
+        , mAdditiveBlending(false)
         , mNormalHeight(false)
         , mTexStageRequiringTangents(-1)
+        , mSoftParticles(false)
         , mNode(nullptr)
     {
-    }
-
-    ShaderVisitor::ShaderRequirements::~ShaderRequirements()
-    {
-
     }
 
     ShaderVisitor::ShaderVisitor(ShaderManager& shaderManager, Resource::ImageManager& imageManager, const std::string &defaultShaderPrefix)
@@ -113,12 +170,12 @@ namespace Shader
         , mAutoUseSpecularMaps(false)
         , mApplyLightingToEnvMaps(false)
         , mConvertAlphaTestToAlphaToCoverage(false)
-        , mTranslucentFramebuffer(false)
+        , mAdjustCoverageForAlphaTest(false)
+        , mSupportsNormalsRT(false)
         , mShaderManager(shaderManager)
         , mImageManager(imageManager)
         , mDefaultShaderPrefix(defaultShaderPrefix)
     {
-        mRequirements.emplace_back();
     }
 
     void ShaderVisitor::setForceShaders(bool force)
@@ -128,15 +185,17 @@ namespace Shader
 
     void ShaderVisitor::apply(osg::Node& node)
     {
-        if (node.getStateSet())
+        bool needPop = false;
+        if (node.getStateSet() || mRequirements.empty())
         {
+            needPop = true;
             pushRequirements(node);
-            applyStateSet(node.getStateSet(), node);
-            traverse(node);
-            popRequirements();
+            if (node.getStateSet())
+                applyStateSet(node.getStateSet(), node);
         }
-        else
-            traverse(node);
+        traverse(node);
+        if (needPop)
+            popRequirements();
     }
 
     osg::StateSet* getWritableStateSet(osg::Node& node)
@@ -195,13 +254,10 @@ namespace Shader
         addedState->setName("addedState");
     }
 
-    const char* defaultTextures[] = { "diffuseMap", "normalMap", "emissiveMap", "darkMap", "detailMap", "envMap", "specularMap", "decalMap", "bumpMap" };
-    bool isTextureNameRecognized(const std::string& name)
+    const char* defaultTextures[] = { "diffuseMap", "normalMap", "emissiveMap", "darkMap", "detailMap", "envMap", "specularMap", "decalMap", "bumpMap", "glossMap" };
+    bool isTextureNameRecognized(std::string_view name)
     {
-        for (unsigned int i=0; i<sizeof(defaultTextures)/sizeof(defaultTextures[0]); ++i)
-            if (name == defaultTextures[i])
-                return true;
-        return false;
+        return std::find(std::begin(defaultTextures), std::end(defaultTextures), name) != std::end(defaultTextures);
     }
 
     void ShaderVisitor::applyStateSet(osg::ref_ptr<osg::StateSet> stateset, osg::Node& node)
@@ -214,6 +270,13 @@ namespace Shader
         if (node.getUserValue("shaderRequired", shaderRequired) && shaderRequired)
             mRequirements.back().mShaderRequired = true;
 
+        bool softEffect = false;
+        if (node.getUserValue(Misc::OsgUserValues::sXSoftEffect, softEffect) && softEffect)
+            mRequirements.back().mSoftParticles = true;
+
+        // Make sure to disregard any state that came from a previous call to createProgram
+        osg::ref_ptr<AddedState> addedState = getAddedState(*stateset);
+
         if (!texAttributes.empty())
         {
             const osg::Texture* diffuseMap = nullptr;
@@ -225,6 +288,11 @@ namespace Shader
                 const osg::StateAttribute *attr = stateset->getTextureAttribute(unit, osg::StateAttribute::TEXTURE);
                 if (attr)
                 {
+                    // If textures ever get removed in createProgram, expand this to check we're operating on main texture attribute list
+                    // rather than the removed list
+                    if (addedState && addedState->hasTextureMode(unit, GL_TEXTURE_2D))
+                        continue;
+
                     const osg::Texture* texture = attr->asTexture();
                     if (texture)
                     {
@@ -268,8 +336,16 @@ namespace Shader
                             {
                                 mRequirements.back().mShaderRequired = true;
                             }
+                            else if (texName == "glossMap")
+                            {
+                                mRequirements.back().mShaderRequired = true;
+                                if (!writableStateSet)
+                                    writableStateSet = getWritableStateSet(node);
+                                // As well as gloss maps
+                                writableStateSet->setTextureMode(unit, GL_TEXTURE_2D, osg::StateAttribute::ON);
+                            }
                         }
-                        else if (!mTranslucentFramebuffer)
+                        else
                             Log(Debug::Error) << "ShaderVisitor encountered unknown texture " << texture;
                     }
                 }
@@ -345,22 +421,12 @@ namespace Shader
                     mRequirements.back().mShaderRequired = true;
                 }
             }
-
-            if (diffuseMap)
-            {
-                if (!writableStateSet)
-                    writableStateSet = getWritableStateSet(node);
-                // We probably shouldn't construct a new version of this each time as Uniforms use pointer comparison for early-out.
-                // Also it should probably belong to the shader manager or be applied by the shadows bin
-                writableStateSet->addUniform(new osg::Uniform("useDiffuseMapForShadowAlpha", true));
-            }
         }
 
         const osg::StateSet::AttributeList& attributes = stateset->getAttributeList();
         osg::StateSet::AttributeList removedAttributes;
         if (osg::ref_ptr<osg::StateSet> removedState = getRemovedState(*stateset))
             removedAttributes = removedState->getAttributeList();
-        osg::ref_ptr<AddedState> addedState = getAddedState(*stateset);
 
         for (const auto* attributeMap : std::initializer_list<const osg::StateSet::AttributeList*>{ &attributes, &removedAttributes })
         {
@@ -417,6 +483,18 @@ namespace Shader
                         mRequirements.back().mAlphaRef = alpha->getReferenceValue();
                     }
                 }
+                else if (it->first.first == osg::StateAttribute::BLENDFUNC)
+                {
+                    if (!mRequirements.back().mBlendFuncOverridden || it->second.second & osg::StateAttribute::PROTECTED)
+                    {
+                        if (it->second.second & osg::StateAttribute::OVERRIDE)
+                            mRequirements.back().mBlendFuncOverridden = true;
+
+                        const osg::BlendFunc* blend = static_cast<const osg::BlendFunc*>(it->second.first.get());
+                        mRequirements.back().mAdditiveBlending =
+                            blend->getSource() == osg::BlendFunc::SRC_ALPHA && blend->getDestination() == osg::BlendFunc::ONE;
+                    }
+                }
             }
         }
 
@@ -432,7 +510,10 @@ namespace Shader
 
     void ShaderVisitor::pushRequirements(osg::Node& node)
     {
-        mRequirements.push_back(mRequirements.back());
+        if (mRequirements.empty())
+            mRequirements.emplace_back();
+        else
+            mRequirements.push_back(mRequirements.back());
         mRequirements.back().mNode = &node;
     }
 
@@ -449,6 +530,22 @@ namespace Shader
             return;
         }
 
+        /**
+        * The shader visitor is supposed to be idempotent and undoable.
+        * That means we need to back up state we've removed (so it can be restored and/or considered by further
+        * applications of the visitor) and track which state we added (so it can be removed and/or ignored by further
+        * applications of the visitor).
+        * Before editing writableStateSet in a way that explicitly removes state or might overwrite existing state, it
+        * should be copied to removedState, another StateSet, unless it's there already or was added by a previous
+        * application of the visitor (is in previousAddedState).
+        * If it's a new class of state that's not already handled by ReinstateRemovedStateVisitor::apply, make sure to
+        * add handling there.
+        * Similarly, any time new state is added to writableStateSet, the equivalent method should be called on
+        * addedState.
+        * If that method doesn't exist yet, implement it - we don't use a full StateSet as we only need to check
+        * existence, not equality, and don't need to actually get the value as we can get it from writableStateSet
+        * instead.
+        */
         osg::Node& node = *reqs.mNode;
         osg::StateSet* writableStateSet = nullptr;
         if (mAllowedToModifyStateSets)
@@ -472,6 +569,12 @@ namespace Shader
             defineMap[texIt->second + std::string("UV")] = std::to_string(texIt->first);
         }
 
+        if (defineMap["diffuseMap"] == "0")
+        {
+            writableStateSet->addUniform(new osg::Uniform("useDiffuseMapForShadowAlpha", false));
+            addedState->addUniform("useDiffuseMapForShadowAlpha");
+        }
+
         defineMap["parallax"] = reqs.mNormalHeight ? "1" : "0";
 
         writableStateSet->addUniform(new osg::Uniform("colorMode", reqs.mColorMode));
@@ -479,7 +582,8 @@ namespace Shader
 
         defineMap["alphaFunc"] = std::to_string(reqs.mAlphaFunc);
 
-        // back up removed state in case recreateShaders gets rid of the shader later
+        defineMap["additiveBlending"] = reqs.mAdditiveBlending ? "1" : "0";
+
         osg::ref_ptr<osg::StateSet> removedState;
         if ((removedState = getRemovedState(*writableStateSet)) && !mAllowedToModifyStateSets)
             removedState = new osg::StateSet(*removedState, osg::CopyOp::SHALLOW_COPY);
@@ -513,7 +617,7 @@ namespace Shader
 
             // Adjusting coverage isn't safe with blending on as blending requires the alpha to be intact.
             // Maybe we could also somehow (e.g. userdata) detect when the diffuse map has coverage-preserving mip maps in the future
-            if (!reqs.mAlphaBlend)
+            if (mAdjustCoverageForAlphaTest && !reqs.mAlphaBlend)
                 defineMap["adjustCoverage"] = "1";
 
             // Preventing alpha tested stuff shrinking as lower mip levels are used requires knowing the texture size
@@ -521,6 +625,21 @@ namespace Shader
             if (exts && exts->isGpuShader4Supported)
                 defineMap["useGPUShader4"] = "1";
             // We could fall back to a texture size uniform if EXT_gpu_shader4 is missing
+        }
+
+        bool simpleLighting = false;
+        node.getUserValue("simpleLighting", simpleLighting);
+        if (simpleLighting)
+            defineMap["endLight"] = "0";
+
+        if (simpleLighting || dynamic_cast<osgParticle::ParticleSystem*>(&node))
+            defineMap["forcePPL"] = "0";
+
+        if (reqs.mAlphaBlend && mSupportsNormalsRT)
+        {
+            if (reqs.mSoftParticles)
+                defineMap["disableNormals"] = "1";
+            writableStateSet->setAttribute(new osg::ColorMaski(1, false, false, false, false));
         }
 
         if (writableStateSet->getMode(GL_ALPHA_TEST) != osg::StateAttribute::INHERIT && !previousAddedState->hasMode(GL_ALPHA_TEST))
@@ -541,19 +660,9 @@ namespace Shader
             updateRemovedState(*writableUserData, removedState);
         }
 
-        if (!addedState->empty())
-        {
-            // user data is normally shallow copied so shared with the original stateset
-            osg::ref_ptr<osg::UserDataContainer> writableUserData;
-            if (mAllowedToModifyStateSets)
-                writableUserData = writableStateSet->getOrCreateUserDataContainer();
-            else
-                writableUserData = getWritableUserDataContainer(*writableStateSet);
+        defineMap["softParticles"] = reqs.mSoftParticles ? "1" : "0";
 
-            updateAddedState(*writableUserData, addedState);
-        }
-
-        defineMap["translucentFramebuffer"] = mTranslucentFramebuffer ? "1" : "0";
+        Stereo::Manager::instance().shaderStereoDefines(defineMap);
 
         std::string shaderPrefix;
         if (!node.getUserValue("shaderPrefix", shaderPrefix))
@@ -564,7 +673,7 @@ namespace Shader
 
         if (vertexShader && fragmentShader)
         {
-            auto program = mShaderManager.getProgram(vertexShader, fragmentShader);
+            auto program = mShaderManager.getProgram(vertexShader, fragmentShader, mProgramTemplate);
             writableStateSet->setAttributeAndModes(program, osg::StateAttribute::ON);
             addedState->setAttributeAndModes(program);
 
@@ -573,6 +682,18 @@ namespace Shader
                 writableStateSet->addUniform(new osg::Uniform(texIt->second.c_str(), texIt->first), osg::StateAttribute::ON);
                 addedState->addUniform(texIt->second);
             }
+        }
+
+        if (!addedState->empty())
+        {
+            // user data is normally shallow copied so shared with the original stateset
+            osg::ref_ptr<osg::UserDataContainer> writableUserData;
+            if (mAllowedToModifyStateSets)
+                writableUserData = writableStateSet->getOrCreateUserDataContainer();
+            else
+                writableUserData = getWritableUserDataContainer(*writableStateSet);
+
+            updateAddedState(*writableUserData, addedState);
         }
     }
 
@@ -585,6 +706,18 @@ namespace Shader
             writableStateSet = node.getStateSet();
         else
             writableStateSet = getWritableStateSet(node);
+
+        /**
+        * We might have been using shaders temporarily with the node (e.g. if a GlowUpdater applied a temporary
+        * environment map for a temporary enchantment).
+        * We therefore need to remove any state doing so added, and restore any that it removed.
+        * This is kept track of in createProgram in the StateSet's userdata.
+        * If new classes of state get added, handling it here is required - not all StateSet features are implemented
+        * in AddedState yet as so far they've not been necessary.
+        * Removed state requires no particular special handling as it's dealt with by merging StateSets.
+        * We don't need to worry about state in writableStateSet having the OVERRIDE flag as if it's in both, it's also
+        * in addedState, and gets removed first.
+        */
 
         // user data is normally shallow copied so shared with the original stateset - we'll need to copy before edits
         osg::ref_ptr<osg::UserDataContainer> writableUserData;
@@ -620,6 +753,23 @@ namespace Shader
             // We don't have access to the function to do that, and can't call removeAttribute with an iterator
             for (const auto& [type, member] : addedState->getAttributes())
                 writableStateSet->removeAttribute(type, member);
+
+            for (unsigned int unit = 0; unit < writableStateSet->getTextureModeList().size(); ++unit)
+            {
+                for (auto itr = writableStateSet->getTextureModeList()[unit].begin(); itr != writableStateSet->getTextureModeList()[unit].end();)
+                {
+                    if (addedState->hasTextureMode(unit, itr->first))
+                        writableStateSet->getTextureModeList()[unit].erase(itr++);
+                    else
+                        ++itr;
+                }
+            }
+
+            for (const auto& [unit, attributeList] : addedState->getTextureAttributes())
+            {
+                for (const auto& [type, member] : attributeList)
+                    writableStateSet->removeTextureAttribute(unit, type);
+            }
         }
 
 
@@ -672,12 +822,12 @@ namespace Shader
 
     void ShaderVisitor::apply(osg::Geometry& geometry)
     {
-        bool needPop = (geometry.getStateSet() != nullptr);
-        if (geometry.getStateSet()) // TODO: check if stateset affects shader permutation before pushing it
-        {
+        bool needPop = geometry.getStateSet() || mRequirements.empty();
+        if (needPop)
             pushRequirements(geometry);
+
+        if (geometry.getStateSet()) // TODO: check if stateset affects shader permutation before pushing it
             applyStateSet(geometry.getStateSet(), geometry);
-        }
 
         if (!mRequirements.empty())
         {
@@ -696,35 +846,47 @@ namespace Shader
 
     void ShaderVisitor::apply(osg::Drawable& drawable)
     {
-        // non-Geometry drawable (e.g. particle system)
-        bool needPop = (drawable.getStateSet() != nullptr);
+        bool needPop = drawable.getStateSet() || mRequirements.empty();
 
-        if (drawable.getStateSet())
+        // We need to push and pop a requirements object because particle systems can have
+        // different shader requirements to other drawables, so might need a different shader variant.
+        if (!needPop && dynamic_cast<osgParticle::ParticleSystem*>(&drawable))
+            needPop = true;
+
+        if (needPop)
         {
             pushRequirements(drawable);
-            applyStateSet(drawable.getStateSet(), drawable);
+
+            if (drawable.getStateSet())
+                applyStateSet(drawable.getStateSet(), drawable);
         }
 
-        if (!mRequirements.empty())
+        const ShaderRequirements& reqs = mRequirements.back();
+        createProgram(reqs);
+
+        if (auto rig = dynamic_cast<SceneUtil::RigGeometry*>(&drawable))
         {
-            const ShaderRequirements& reqs = mRequirements.back();
-            createProgram(reqs);
-
-            if (auto rig = dynamic_cast<SceneUtil::RigGeometry*>(&drawable))
-            {
-                osg::ref_ptr<osg::Geometry> sourceGeometry = rig->getSourceGeometry();
-                if (sourceGeometry && adjustGeometry(*sourceGeometry, reqs))
-                    rig->setSourceGeometry(sourceGeometry);
-            }
-            else if (auto morph = dynamic_cast<SceneUtil::MorphGeometry*>(&drawable))
-            {
-                osg::ref_ptr<osg::Geometry> sourceGeometry = morph->getSourceGeometry();
-                if (sourceGeometry && adjustGeometry(*sourceGeometry, reqs))
-                    morph->setSourceGeometry(sourceGeometry);
-            }
+            osg::ref_ptr<osg::Geometry> sourceGeometry = rig->getSourceGeometry();
+            if (sourceGeometry && adjustGeometry(*sourceGeometry, reqs))
+                rig->setSourceGeometry(sourceGeometry);
         }
-        else
-            ensureFFP(drawable);
+        else if (auto morph = dynamic_cast<SceneUtil::MorphGeometry*>(&drawable))
+        {
+            osg::ref_ptr<osg::Geometry> sourceGeometry = morph->getSourceGeometry();
+            if (sourceGeometry && adjustGeometry(*sourceGeometry, reqs))
+                morph->setSourceGeometry(sourceGeometry);
+        }
+        else if (auto osgaRig = dynamic_cast<SceneUtil::RigGeometryHolder*>(&drawable))
+        {
+            osg::ref_ptr<SceneUtil::OsgaRigGeometry> sourceOsgaRigGeometry = osgaRig->getSourceRigGeometry();
+            osg::ref_ptr<osg::Geometry> sourceGeometry = sourceOsgaRigGeometry->getSourceGeometry();
+            if (sourceGeometry && adjustGeometry(*sourceGeometry, reqs))
+            {
+                sourceOsgaRigGeometry->setSourceGeometry(sourceGeometry);
+                osgaRig->setSourceRigGeometry(sourceOsgaRigGeometry);
+            }
+
+        }
 
         if (needPop)
             popRequirements();
@@ -770,9 +932,9 @@ namespace Shader
         mConvertAlphaTestToAlphaToCoverage = convert;
     }
 
-    void ShaderVisitor::setTranslucentFramebuffer(bool translucent)
+    void ShaderVisitor::setAdjustCoverageForAlphaTest(bool adjustCoverage)
     {
-        mTranslucentFramebuffer = translucent;
+        mAdjustCoverageForAlphaTest = adjustCoverage;
     }
 
     ReinstateRemovedStateVisitor::ReinstateRemovedStateVisitor(bool allowedToModifyStateSets)
@@ -783,6 +945,10 @@ namespace Shader
 
     void ReinstateRemovedStateVisitor::apply(osg::Node& node)
     {
+        // TODO: this may eventually need to remove added state.
+        // If so, we can migrate from explicitly copying removed state to just calling osg::StateSet::merge.
+        // Not everything is transferred from removedState yet - implement more when createProgram starts marking more
+        // as removed.
         if (node.getStateSet())
         {
             osg::ref_ptr<osg::StateSet> removedState = getRemovedState(*node.getStateSet());
@@ -808,6 +974,12 @@ namespace Shader
 
                 for (const auto& attribute : removedState->getAttributeList())
                     writableStateSet->setAttribute(attribute.second.first, attribute.second.second);
+
+                for (unsigned int unit = 0; unit < removedState->getTextureModeList().size(); ++unit)
+                {
+                    for (const auto&[mode, value] : removedState->getTextureModeList()[unit])
+                        writableStateSet->setTextureMode(unit, mode, value);
+                }
             }
         }
 

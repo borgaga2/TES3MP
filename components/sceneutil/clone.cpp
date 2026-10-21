@@ -2,8 +2,6 @@
 
 #include <osg/StateSet>
 
-#include <osgAnimation/Bone>
-#include <osgAnimation/Skeleton>
 #include <osgAnimation/MorphGeometry>
 #include <osgAnimation/RigGeometry>
 
@@ -13,6 +11,7 @@
 
 #include <components/sceneutil/morphgeometry.hpp>
 #include <components/sceneutil/riggeometry.hpp>
+#include <components/sceneutil/riggeometryosgaextension.hpp>
 
 namespace SceneUtil
 {
@@ -35,11 +34,6 @@ namespace SceneUtil
             mUpdaterToOldPs[cloned] = updater->getParticleSystem(0);
             return cloned;
         }
-
-        if (dynamic_cast<const osgAnimation::Bone*>(node) || dynamic_cast<const osgAnimation::Skeleton*>(node))
-        {
-            return osg::clone(node, *this);
-        }
         return osg::CopyOp::operator()(node);
     }
 
@@ -48,7 +42,9 @@ namespace SceneUtil
         if (const osgParticle::ParticleSystem* partsys = dynamic_cast<const osgParticle::ParticleSystem*>(drawable))
             return operator()(partsys);
 
-        if (dynamic_cast<const SceneUtil::RigGeometry*>(drawable) || dynamic_cast<const SceneUtil::MorphGeometry*>(drawable) || dynamic_cast<const osgAnimation::RigGeometry*>(drawable) || dynamic_cast<const osgAnimation::MorphGeometry*>(drawable))
+        if (dynamic_cast<const SceneUtil::RigGeometry*>(drawable) || dynamic_cast<const SceneUtil::MorphGeometry*>(drawable) ||
+            dynamic_cast<const osgAnimation::RigGeometry*>(drawable) || dynamic_cast<const osgAnimation::MorphGeometry*>(drawable) ||
+            dynamic_cast<const SceneUtil::RigGeometryHolder*>(drawable))
         {
             return static_cast<osg::Drawable*>(drawable->clone(*this));
         }

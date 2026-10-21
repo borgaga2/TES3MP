@@ -4,13 +4,10 @@
 #include <stdexcept>
 
 #include <QUndoStack>
-#include <QMetaProperty>
 #include <QStyledItemDelegate>
 #include <QLineEdit>
-#include <QComboBox>
 #include <QCheckBox>
 #include <QPlainTextEdit>
-#include <QEvent>
 #include <QItemEditorFactory>
 
 #include "../../model/world/commands.hpp"
@@ -288,6 +285,14 @@ QWidget *CSVWorld::CommandDelegate::createEditor (QWidget *parent, const QStyleO
         // For other Display types (that represent record IDs) with drop support IdCompletionDelegate is used
             CSVWidget::DropLineEdit *widget = new CSVWidget::DropLineEdit(display, parent);
             widget->setMaxLength (32);
+            return widget;
+        }
+
+        case CSMWorld::ColumnBase::Display_String64:
+        {
+        // For other Display types (that represent record IDs) with drop support IdCompletionDelegate is used
+            CSVWidget::DropLineEdit *widget = new CSVWidget::DropLineEdit(display, parent);
+            widget->setMaxLength (64);
             return widget;
         }
 

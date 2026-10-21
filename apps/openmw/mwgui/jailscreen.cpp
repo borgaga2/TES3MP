@@ -135,15 +135,13 @@ namespace MWGui
         */
 
         // We should not worsen corprus when in prison
-        for (auto& spell : player.getClass().getCreatureStats(player).getCorprusSpells())
-        {
-            spell.second.mNextWorsening += mDays * 24;
-        }
+        player.getClass().getCreatureStats(player).getActiveSpells().skipWorsenings(mDays * 24);
 
         std::set<int> skills;
         for (int day=0; day<mDays; ++day)
         {
-            int skill = Misc::Rng::rollDice(ESM::Skill::Length);
+            auto& prng = MWBase::Environment::get().getWorld()->getPrng();
+            int skill = Misc::Rng::rollDice(ESM::Skill::Length, prng);
             skills.insert(skill);
 
             MWMechanics::SkillValue& value = player.getClass().getNpcStats(player).getSkill(skill);
@@ -187,7 +185,7 @@ namespace MWGui
 
         for (const int& skill : skills)
         {
-            std::string skillName = gmst.find(ESM::Skill::sSkillNameIds[skill])->mValue.getString();
+            const std::string& skillName = gmst.find(ESM::Skill::sSkillNameIds[skill])->mValue.getString();
             int skillValue = player.getClass().getNpcStats(player).getSkill(skill).getBase();
             std::string skillMsg = gmst.find("sNotifyMessage44")->mValue.getString();
 

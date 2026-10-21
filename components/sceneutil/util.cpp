@@ -8,11 +8,13 @@
 #include <osg/NodeVisitor>
 #include <osg/TexGen>
 #include <osg/TexEnvCombine>
-#include <osg/Version>
+#include <osg/FrameBufferObject>
+#include <osgUtil/RenderStage>
+#include <osgUtil/CullVisitor>
 
 #include <components/resource/imagemanager.hpp>
 #include <components/resource/scenemanager.hpp>
-#include <components/settings/settings.hpp>
+#include <components/sceneutil/nodecallback.hpp>
 
 namespace SceneUtil
 {
@@ -150,37 +152,6 @@ void GlowUpdater::setDuration(float duration)
     mDuration = duration;
 }
 
-void transformBoundingSphere (const osg::Matrixf& matrix, osg::BoundingSphere& bsphere)
-{
-    osg::BoundingSphere::vec_type xdash = bsphere._center;
-    xdash.x() += bsphere._radius;
-    xdash = xdash*matrix;
-
-    osg::BoundingSphere::vec_type ydash = bsphere._center;
-    ydash.y() += bsphere._radius;
-    ydash = ydash*matrix;
-
-    osg::BoundingSphere::vec_type zdash = bsphere._center;
-    zdash.z() += bsphere._radius;
-    zdash = zdash*matrix;
-
-    bsphere._center = bsphere._center*matrix;
-
-    xdash -= bsphere._center;
-    osg::BoundingSphere::value_type sqrlen_xdash = xdash.length2();
-
-    ydash -= bsphere._center;
-    osg::BoundingSphere::value_type sqrlen_ydash = ydash.length2();
-
-    zdash -= bsphere._center;
-    osg::BoundingSphere::value_type sqrlen_zdash = zdash.length2();
-
-    bsphere._radius = sqrlen_xdash;
-    if (bsphere._radius<sqrlen_ydash) bsphere._radius = sqrlen_ydash;
-    if (bsphere._radius<sqrlen_zdash) bsphere._radius = sqrlen_zdash;
-    bsphere._radius = sqrtf(bsphere._radius);
-}
-
 osg::Vec4f colourFromRGB(unsigned int clr)
 {
     osg::Vec4f colour(((clr >> 0) & 0xFF) / 255.0f,
@@ -200,7 +171,7 @@ float makeOsgColorComponent(unsigned int value, unsigned int shift)
     return float((value >> shift) & 0xFFu) / 255.0f;
 }
 
-bool hasUserDescription(const osg::Node* node, const std::string pattern)
+bool hasUserDescription(const osg::Node* node, const std::string& pattern)
 {
     if (node == nullptr)
         return false;
@@ -218,7 +189,7 @@ bool hasUserDescription(const osg::Node* node, const std::string pattern)
     return false;
 }
 
-osg::ref_ptr<GlowUpdater> addEnchantedGlow(osg::ref_ptr<osg::Node> node, Resource::ResourceSystem* resourceSystem, osg::Vec4f glowColor, float glowDuration)
+osg::ref_ptr<GlowUpdater> addEnchantedGlow(osg::ref_ptr<osg::Node> node, Resource::ResourceSystem* resourceSystem, const osg::Vec4f& glowColor, float glowDuration)
 {
     std::vector<osg::ref_ptr<osg::Texture2D> > textures;
     for (int i=0; i<32; ++i)
@@ -264,12 +235,6 @@ osg::ref_ptr<GlowUpdater> addEnchantedGlow(osg::ref_ptr<osg::Node> node, Resourc
 
 bool attachAlphaToCoverageFriendlyFramebufferToCamera(osg::Camera* camera, osg::Camera::BufferComponent buffer, osg::Texture * texture, unsigned int level, unsigned int face, bool mipMapGeneration)
 {
-#if OSG_VERSION_LESS_THAN(3, 6, 6)
-    // hack fix for https://github.com/openscenegraph/OpenSceneGraph/issues/1028
-    osg::ref_ptr<osg::GLExtensions> extensions = osg::GLExtensions::Get(0, false);
-    if (extensions)
-        extensions->glRenderbufferStorageMultisampleCoverageNV = nullptr;
-#endif
     unsigned int samples = 0;
     unsigned int colourSamples = 0;
     bool addMSAAIntermediateTarget = Settings::Manager::getBool("antialias alpha test", "Shaders") && Settings::Manager::getInt("antialiasing", "Video") > 1;
@@ -283,6 +248,22 @@ bool attachAlphaToCoverageFriendlyFramebufferToCamera(osg::Camera* camera, osg::
     }
     camera->attach(buffer, texture, level, face, mipMapGeneration, samples, colourSamples);
     return addMSAAIntermediateTarget;
+}
+
+OperationSequence::OperationSequence(bool keep)
+    : Operation("OperationSequence", keep)
+    , mOperationQueue(new osg::OperationQueue())
+{
+}
+
+void OperationSequence::operator()(osg::Object* object)
+{
+    mOperationQueue->runOperations(object);
+}
+
+void OperationSequence::add(osg::Operation* operation)
+{
+    mOperationQueue->add(operation);
 }
 
 }

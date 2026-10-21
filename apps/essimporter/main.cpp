@@ -11,7 +11,6 @@ namespace bpo = boost::program_options;
 namespace bfs = boost::filesystem;
 
 
-
 int main(int argc, char** argv)
 {
     try
@@ -26,6 +25,7 @@ int main(int argc, char** argv)
             ("encoding", boost::program_options::value<std::string>()->default_value("win1252"), "encoding of the save file")
         ;
         p_desc.add("mwsave", 1).add("output", 1);
+        Files::ConfigurationManager::addCommonOptions(desc);
 
         bpo::variables_map variables;
 

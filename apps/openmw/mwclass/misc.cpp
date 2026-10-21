@@ -12,7 +12,9 @@
     End of tes3mp addition
 */
 
-#include <components/esm/loadmisc.hpp>
+#include <MyGUI_TextIterator.h>
+
+#include <components/esm3/loadmisc.hpp>
 #include <components/settings/settings.hpp>
 
 #include "../mwbase/environment.hpp"
@@ -31,8 +33,15 @@
 #include "../mwrender/objects.hpp"
 #include "../mwrender/renderinginterface.hpp"
 
+#include "classmodel.hpp"
+
 namespace MWClass
 {
+    Miscellaneous::Miscellaneous()
+        : MWWorld::RegisteredClass<Miscellaneous>(ESM::Miscellaneous::sRecordId)
+    {
+    }
+
     bool Miscellaneous::isGold (const MWWorld::ConstPtr& ptr) const
     {
         return Misc::StringUtils::ciEqual(ptr.getCellRef().getRefId(), "gold_001")
@@ -49,7 +58,7 @@ namespace MWClass
         }
     }
 
-    void Miscellaneous::insertObject(const MWWorld::Ptr& ptr, const std::string& model, MWPhysics::PhysicsSystem& physics) const
+    void Miscellaneous::insertObject(const MWWorld::Ptr& ptr, const std::string& model, const osg::Quat& rotation, MWPhysics::PhysicsSystem& physics) const
     {
         // TODO: add option somewhere to enable collision for placeable objects
 
@@ -65,9 +74,9 @@ namespace MWClass
             if (worldstate->hasPlacedObjectCollision || Utils::vectorContains(worldstate->enforcedCollisionRefIds, ptr.getCellRef().getRefId()))
             {
                 if (worldstate->useActorCollisionForPlacedObjects)
-                    physics.addObject(ptr, model, MWPhysics::CollisionType_Actor);
+                    physics.addObject(ptr, model, rotation, MWPhysics::CollisionType_Actor);
                 else
-                    physics.addObject(ptr, model, MWPhysics::CollisionType_World);
+                    physics.addObject(ptr, model, rotation, MWPhysics::CollisionType_World);
             }
         }
         /*
@@ -77,13 +86,7 @@ namespace MWClass
 
     std::string Miscellaneous::getModel(const MWWorld::ConstPtr &ptr) const
     {
-        const MWWorld::LiveCellRef<ESM::Miscellaneous> *ref = ptr.get<ESM::Miscellaneous>();
-
-        const std::string &model = ref->mBase->mModel;
-        if (!model.empty()) {
-            return "meshes\\" + model;
-        }
-        return "";
+        return getClassModel<ESM::Miscellaneous>(ptr);
     }
 
     std::string Miscellaneous::getName (const MWWorld::ConstPtr& ptr) const
@@ -94,7 +97,7 @@ namespace MWClass
         return !name.empty() ? name : ref->mBase->mId;
     }
 
-    std::shared_ptr<MWWorld::Action> Miscellaneous::activate (const MWWorld::Ptr& ptr,
+    std::unique_ptr<MWWorld::Action> Miscellaneous::activate (const MWWorld::Ptr& ptr,
         const MWWorld::Ptr& actor) const
     {
         return defaultItemActivate(ptr, actor);
@@ -138,13 +141,6 @@ namespace MWClass
         }
 
         return value;
-    }
-
-    void Miscellaneous::registerSelf()
-    {
-        std::shared_ptr<Class> instance (new Miscellaneous);
-
-        registerClass (typeid (ESM::Miscellaneous).name(), instance);
     }
 
     std::string Miscellaneous::getUpSoundId (const MWWorld::ConstPtr& ptr) const
@@ -243,12 +239,14 @@ namespace MWClass
         return newPtr;
     }
 
-    std::shared_ptr<MWWorld::Action> Miscellaneous::use (const MWWorld::Ptr& ptr, bool force) const
+    std::unique_ptr<MWWorld::Action> Miscellaneous::use (const MWWorld::Ptr& ptr, bool force) const
     {
-        if (ptr.getCellRef().getSoul().empty() || !MWBase::Environment::get().getWorld()->getStore().get<ESM::Creature>().search(ptr.getCellRef().getSoul()))
-            return std::shared_ptr<MWWorld::Action>(new MWWorld::NullAction());
-        else
-            return std::shared_ptr<MWWorld::Action>(new MWWorld::ActionSoulgem(ptr));
+        const std::string soulgemPrefix = "misc_soulgem";
+
+        if (::Misc::StringUtils::ciCompareLen(ptr.getCellRef().getRefId(), soulgemPrefix, soulgemPrefix.length()) == 0)
+            return std::make_unique<MWWorld::ActionSoulgem>(ptr);
+
+        return std::make_unique<MWWorld::NullAction>();
     }
 
     bool Miscellaneous::canSell (const MWWorld::ConstPtr& item, int npcServices) const

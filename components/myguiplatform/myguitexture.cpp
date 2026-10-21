@@ -3,6 +3,7 @@
 #include <stdexcept>
 
 #include <osg/Texture2D>
+#include <osg/StateSet>
 
 #include <components/debug/debuglog.hpp>
 #include <components/resource/imagemanager.hpp>
@@ -21,9 +22,10 @@ namespace osgMyGUI
     {
     }
 
-    OSGTexture::OSGTexture(osg::Texture2D *texture)
+    OSGTexture::OSGTexture(osg::Texture2D *texture, osg::StateSet *injectState)
         : mImageManager(nullptr)
         , mTexture(texture)
+        , mInjectState(injectState)
         , mFormat(MyGUI::PixelFormat::Unknow)
         , mUsage(MyGUI::TextureUsage::Default)
         , mNumElemBytes(0)
@@ -163,8 +165,6 @@ namespace osgMyGUI
         return nullptr;
     }
 
-#if MYGUI_VERSION > MYGUI_DEFINE_VERSION(3, 4, 0)
     void OSGTexture::setShader(const std::string& _shaderName)
     { Log(Debug::Warning) << "OSGTexture::setShader is not implemented"; }
-#endif
 }

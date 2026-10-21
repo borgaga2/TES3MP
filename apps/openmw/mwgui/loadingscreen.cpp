@@ -1,18 +1,16 @@
 #include "loadingscreen.hpp"
 
 #include <array>
-#include <condition_variable>
 
 #include <osgViewer/Viewer>
 
 #include <osg/Texture2D>
-#include <osg/Version>
 
-#include <MyGUI_RenderManager.h>
 #include <MyGUI_ScrollBar.h>
 #include <MyGUI_Gui.h>
 #include <MyGUI_TextBox.h>
 
+#include <components/misc/pathhelpers.hpp>
 #include <components/misc/rng.hpp>
 #include <components/debug/debuglog.hpp>
 #include <components/myguiplatform/myguitexture.hpp>
@@ -44,18 +42,13 @@ namespace MWGui
         , mProgress(0)
         , mShowWallpaper(true)
     {
-        mMainWidget->setSize(MyGUI::RenderManager::getInstance().getViewSize());
-
         getWidget(mLoadingText, "LoadingText");
         getWidget(mProgressBar, "ProgressBar");
         getWidget(mLoadingBox, "LoadingBox");
+        getWidget(mSceneImage, "Scene");
+        getWidget(mSplashImage, "Splash");
 
         mProgressBar->setScrollViewPage(1);
-
-        mBackgroundImage = MyGUI::Gui::getInstance().createWidgetReal<BackgroundImage>("ImageBox", 0,0,1,1,
-            MyGUI::Align::Stretch, "Menu");
-        mSceneImage = MyGUI::Gui::getInstance().createWidgetReal<BackgroundImage>("ImageBox", 0,0,1,1,
-            MyGUI::Align::Stretch, "Scene");
 
         findSplashScreens();
     }
@@ -66,35 +59,15 @@ namespace MWGui
 
     void LoadingScreen::findSplashScreens()
     {
-        const std::map<std::string, VFS::File*>& index = mResourceSystem->getVFS()->getIndex();
-        std::string pattern = "Splash/";
-        mResourceSystem->getVFS()->normalizeFilename(pattern);
+        auto isSupportedExtension = [](const std::string_view& ext) {
+            static const std::array<std::string, 7> supported_extensions{ {"tga", "dds", "ktx", "png", "bmp", "jpeg", "jpg"} };
+            return !ext.empty() && std::find(supported_extensions.begin(), supported_extensions.end(), ext) != supported_extensions.end();
+        };
 
-        /* priority given to the left */
-        const std::array<std::string, 7> supported_extensions {{".tga", ".dds", ".ktx", ".png", ".bmp", ".jpeg", ".jpg"}};
-
-        auto found = index.lower_bound(pattern);
-        while (found != index.end())
+        for (const auto& name : mResourceSystem->getVFS()->getRecursiveDirectoryIterator("Splash/"))
         {
-            const std::string& name = found->first;
-            if (name.size() >= pattern.size() && name.substr(0, pattern.size()) == pattern)
-            {
-                size_t pos = name.find_last_of('.');
-                if (pos != std::string::npos)
-                {
-                    for(auto const& extension: supported_extensions)
-                    {
-                        if (name.compare(pos, name.size() - pos, extension) == 0)
-                        {
-                            mSplashScreens.push_back(found->first);
-                            break;  /* based on priority */
-                        }
-                    }
-                }
-            }
-            else
-                break;
-            ++found;
+            if (isSupportedExtension(Misc::getFileExtension(name)))
+                mSplashScreens.push_back(name);
         }
         if (mSplashScreens.empty())
             Log(Debug::Warning) << "Warning: no splash screens found!";
@@ -119,7 +92,7 @@ namespace MWGui
     void LoadingScreen::setVisible(bool visible)
     {
         WindowBase::setVisible(visible);
-        mBackgroundImage->setVisible(visible);
+        mSplashImage->setVisible(visible);
         mSceneImage->setVisible(visible);
     }
 
@@ -226,7 +199,6 @@ namespace MWGui
         mViewer->getSceneData()->setComputeBoundingSphereCallback(nullptr);
         mViewer->getSceneData()->dirtyBound();
 
-        //std::cout << "loading took " << mTimer.time_m() - mLoadingOnTime << std::endl;
         setVisible(false);
 
         if (osgUtil::IncrementalCompileOperation* ico = mViewer->getIncrementalCompileOperation())
@@ -248,8 +220,8 @@ namespace MWGui
             // TODO: add option (filename pattern?) to use image aspect ratio instead of 4:3
             // we can't do this by default, because the Morrowind splash screens are 1024x1024, but should be displayed as 4:3
             bool stretch = Settings::Manager::getBool("stretch menu background", "GUI");
-            mBackgroundImage->setVisible(true);
-            mBackgroundImage->setBackgroundImage(randomSplash, true, stretch);
+            mSplashImage->setVisible(true);
+            mSplashImage->setBackgroundImage(randomSplash, true, stretch);
         }
         mSceneImage->setBackgroundImage("");
         mSceneImage->setVisible(false);
@@ -317,13 +289,15 @@ namespace MWGui
         if (!mTexture)
         {
             mTexture = new osg::Texture2D;
+            mTexture->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_EDGE);
+            mTexture->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);
             mTexture->setInternalFormat(GL_RGB);
             mTexture->setResizeNonPowerOfTwoHint(false);
         }
 
         if (!mGuiTexture.get())
         {
-            mGuiTexture.reset(new osgMyGUI::OSGTexture(mTexture));
+            mGuiTexture = std::make_unique<osgMyGUI::OSGTexture>(mTexture);
         }
 
         if (!mCopyFramebufferToTextureCallback)
@@ -331,16 +305,12 @@ namespace MWGui
             mCopyFramebufferToTextureCallback = new CopyFramebufferToTextureCallback(mTexture);
         }
 
-#if OSG_VERSION_GREATER_OR_EQUAL(3, 5, 10)
         mViewer->getCamera()->removeInitialDrawCallback(mCopyFramebufferToTextureCallback);
         mViewer->getCamera()->addInitialDrawCallback(mCopyFramebufferToTextureCallback);
-#else
-        mViewer->getCamera()->setInitialDrawCallback(mCopyFramebufferToTextureCallback);
-#endif
         mCopyFramebufferToTextureCallback->reset();
 
-        mBackgroundImage->setBackgroundImage("");
-        mBackgroundImage->setVisible(false);
+        mSplashImage->setBackgroundImage("");
+        mSplashImage->setVisible(false);
 
         mSceneImage->setRenderItemTexture(mGuiTexture.get());
         mSceneImage->getSubWidgetMain()->_setUVSet(MyGUI::FloatRect(0.f, 0.f, 1.f, 1.f));

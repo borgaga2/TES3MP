@@ -1,7 +1,5 @@
-#include <QRegExpValidator>
 #include <QString>
 #include <QApplication>
-#include <QKeyEvent>
 
 #include "profilescombobox.hpp"
 
@@ -29,7 +27,7 @@ void ProfilesComboBox::setEditEnabled(bool editable)
     setEditable(true);
     setValidator(mValidator);
 
-    ComboBoxLineEdit *edit = new ComboBoxLineEdit(this);
+    auto *edit = new ComboBoxLineEdit(this);
 
     setLineEdit(edit);
     setCompleter(nullptr);

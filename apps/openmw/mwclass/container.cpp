@@ -12,8 +12,10 @@
     End of tes3mp addition
 */
 
-#include <components/esm/loadcont.hpp>
-#include <components/esm/containerstate.hpp>
+#include <MyGUI_TextIterator.h>
+
+#include <components/esm3/loadcont.hpp>
+#include <components/esm3/containerstate.hpp>
 #include <components/settings/settings.hpp>
 
 #include "../mwbase/environment.hpp"
@@ -21,11 +23,8 @@
 #include "../mwbase/windowmanager.hpp"
 #include "../mwbase/soundmanager.hpp"
 
-#include "../mwworld/ptr.hpp"
 #include "../mwworld/failedaction.hpp"
 #include "../mwworld/nullaction.hpp"
-#include "../mwworld/containerstore.hpp"
-#include "../mwworld/customdata.hpp"
 #include "../mwworld/cellstore.hpp"
 #include "../mwworld/esmstore.hpp"
 #include "../mwworld/actionharvest.hpp"
@@ -40,14 +39,17 @@
 #include "../mwrender/objects.hpp"
 #include "../mwrender/renderinginterface.hpp"
 
-#include "../mwmechanics/actorutil.hpp"
 #include "../mwmechanics/npcstats.hpp"
+#include "../mwmechanics/inventory.hpp"
+
+#include "classmodel.hpp"
 
 namespace MWClass
 {
     ContainerCustomData::ContainerCustomData(const ESM::Container& container, MWWorld::CellStore* cell)
     {
-        unsigned int seed = Misc::Rng::rollDice(std::numeric_limits<int>::max());
+        auto& prng = MWBase::Environment::get().getWorld()->getPrng();
+        unsigned int seed = Misc::Rng::rollDice(std::numeric_limits<int>::max(), prng);
         // setting ownership not needed, since taking items from a container inherits the
         // container's owner automatically
         mStore.fillNonRandom(container.mInventory, "", seed);
@@ -68,8 +70,9 @@ namespace MWClass
     }
 
     Container::Container()
+        : MWWorld::RegisteredClass<Container>(ESM::Container::sRecordId)
+        , mHarvestEnabled(Settings::Manager::getBool("graphic herbalism", "Game"))
     {
-        mHarvestEnabled = Settings::Manager::getBool("graphic herbalism", "Game");
     }
 
     void Container::ensureCustomData (const MWWorld::Ptr& ptr) const
@@ -118,21 +121,19 @@ namespace MWClass
         }
     }
 
-    void Container::insertObject(const MWWorld::Ptr& ptr, const std::string& model, MWPhysics::PhysicsSystem& physics) const
+    void Container::insertObject(const MWWorld::Ptr& ptr, const std::string& model, const osg::Quat& rotation, MWPhysics::PhysicsSystem& physics) const
     {
-        if(!model.empty())
-            physics.addObject(ptr, model);
+        insertObjectPhysics(ptr, model, rotation, physics);
+    }
+
+    void Container::insertObjectPhysics(const MWWorld::Ptr& ptr, const std::string& model, const osg::Quat& rotation, MWPhysics::PhysicsSystem& physics) const
+    {
+        physics.addObject(ptr, model, rotation, MWPhysics::CollisionType_World);
     }
 
     std::string Container::getModel(const MWWorld::ConstPtr &ptr) const
     {
-        const MWWorld::LiveCellRef<ESM::Container> *ref = ptr.get<ESM::Container>();
-
-        const std::string &model = ref->mBase->mModel;
-        if (!model.empty()) {
-            return "meshes\\" + model;
-        }
-        return "";
+        return getClassModel<ESM::Container>(ptr);
     }
 
     bool Container::useAnim() const
@@ -140,18 +141,19 @@ namespace MWClass
         return true;
     }
 
-    std::shared_ptr<MWWorld::Action> Container::activate (const MWWorld::Ptr& ptr,
+    std::unique_ptr<MWWorld::Action> Container::activate (const MWWorld::Ptr& ptr,
         const MWWorld::Ptr& actor) const
     {
         if (!MWBase::Environment::get().getWindowManager()->isAllowed(MWGui::GW_Inventory))
-            return std::shared_ptr<MWWorld::Action> (new MWWorld::NullAction ());
+            return std::make_unique<MWWorld::NullAction>();
 
         if(actor.getClass().isNpc() && actor.getClass().getNpcStats(actor).isWerewolf())
         {
             const MWWorld::ESMStore &store = MWBase::Environment::get().getWorld()->getStore();
-            const ESM::Sound *sound = store.get<ESM::Sound>().searchRandom("WolfContainer");
+            auto& prng = MWBase::Environment::get().getWorld()->getPrng();
+            const ESM::Sound *sound = store.get<ESM::Sound>().searchRandom("WolfContainer", prng);
 
-            std::shared_ptr<MWWorld::Action> action(new MWWorld::FailedAction("#{sWerewolfRefusal}"));
+            std::unique_ptr<MWWorld::Action> action = std::make_unique<MWWorld::FailedAction>("#{sWerewolfRefusal}");
             if(sound) action->setSound(sound->mId);
 
             return action;
@@ -251,24 +253,22 @@ namespace MWClass
             {
                 if (canBeHarvested(ptr))
                 {
-                    std::shared_ptr<MWWorld::Action> action (new MWWorld::ActionHarvest(ptr));
-                    return action;
+                    return std::make_unique<MWWorld::ActionHarvest>(ptr);
                 }
 
-                std::shared_ptr<MWWorld::Action> action (new MWWorld::ActionOpen(ptr));
-                return action;
+                return std::make_unique<MWWorld::ActionOpen>(ptr);
             }
             else
             {
                 // Activate trap
-                std::shared_ptr<MWWorld::Action> action(new MWWorld::ActionTrap(ptr.getCellRef().getTrap(), ptr));
+                std::unique_ptr<MWWorld::Action> action = std::make_unique<MWWorld::ActionTrap>(ptr.getCellRef().getTrap(), ptr);
                 action->setSound(trapActivationSound);
                 return action;
             }
         }
         else
         {
-            std::shared_ptr<MWWorld::Action> action(new MWWorld::FailedAction(std::string(), ptr));
+            std::unique_ptr<MWWorld::Action> action = std::make_unique<MWWorld::FailedAction>(std::string(), ptr);
             action->setSound(lockedSound);
             return action;
         }
@@ -295,13 +295,6 @@ namespace MWClass
         const MWWorld::LiveCellRef<ESM::Container> *ref = ptr.get<ESM::Container>();
 
         return ref->mBase->mScript;
-    }
-
-    void Container::registerSelf()
-    {
-        std::shared_ptr<Class> instance (new Container);
-
-        registerClass (typeid (ESM::Container).name(), instance);
     }
 
     bool Container::hasToolTip (const MWWorld::ConstPtr& ptr) const

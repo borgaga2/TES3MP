@@ -14,6 +14,7 @@
 */
 
 #include <string>
+#include <string_view>
 
 #include "pathfinding.hpp"
 
@@ -34,7 +35,7 @@ namespace MWMechanics
         public:
             /// Constructor
             /** \param objectId Reference to object to activate **/
-            explicit AiActivate(const std::string &objectId);
+            explicit AiActivate(std::string_view objectId, bool repeat);
 
             /*
                 Start of tes3mp addition

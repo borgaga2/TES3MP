@@ -52,13 +52,15 @@ InputWrapper::InputWrapper(SDL_Window* window, osg::ref_ptr<osgViewer::Viewer> v
 
         if (windowEventsOnly)
         {
-            // During loading, handle window events, discard button presses and keep others for later
-            while (SDL_PeepEvents(&evt, 1, SDL_GETEVENT, SDL_WINDOWEVENT, SDL_WINDOWEVENT))
+            // During loading, handle window events, discard button presses and mouse movement and keep others for later
+            while (SDL_PeepEvents(&evt, 1, SDL_GETEVENT, SDL_WINDOWEVENT, SDL_WINDOWEVENT) > 0)
                 handleWindowEvent(evt);
 
             SDL_FlushEvent(SDL_KEYDOWN);
             SDL_FlushEvent(SDL_CONTROLLERBUTTONDOWN);
             SDL_FlushEvent(SDL_MOUSEBUTTONDOWN);
+            SDL_FlushEvent(SDL_MOUSEMOTION);
+            SDL_FlushEvent(SDL_MOUSEWHEEL);
 
             return;
         }
@@ -146,6 +148,20 @@ InputWrapper::InputWrapper(SDL_Window* window, osg::ref_ptr<osgViewer::Viewer> v
                     if(mConListener)
                         mConListener->axisMoved(1, evt.caxis);
                     break;
+                #if SDL_VERSION_ATLEAST(2, 0, 14)
+                case SDL_CONTROLLERSENSORUPDATE:
+                    // controller sensor data is received on demand
+                    break;
+                case SDL_CONTROLLERTOUCHPADDOWN:
+                    mConListener->touchpadPressed(1, TouchEvent(evt.ctouchpad));
+                    break;
+                case SDL_CONTROLLERTOUCHPADMOTION:
+                    mConListener->touchpadMoved(1, TouchEvent(evt.ctouchpad));
+                    break;
+                case SDL_CONTROLLERTOUCHPADUP:
+                    mConListener->touchpadReleased(1, TouchEvent(evt.ctouchpad));
+                    break;
+                #endif
                 case SDL_WINDOWEVENT:
                     handleWindowEvent(evt);
                     break;

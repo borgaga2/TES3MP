@@ -10,7 +10,7 @@
 #include <osgUtil/IncrementalCompileOperation>
 
 #include "objects.hpp"
-
+#include "navmeshmode.hpp"
 #include "renderinginterface.hpp"
 #include "rendermode.hpp"
 
@@ -59,6 +59,7 @@ namespace SceneUtil
 {
     class ShadowManager;
     class WorkQueue;
+    class LightManager;
     class UnrefQueue;
 }
 
@@ -66,12 +67,19 @@ namespace DetourNavigator
 {
     struct Navigator;
     struct Settings;
+    struct AgentBounds;
+}
+
+namespace MWWorld
+{
+    class GroundcoverStore;
 }
 
 namespace MWRender
 {
-    class GroundcoverUpdater;
     class StateUpdater;
+    class SharedUniformStateUpdater;
+    class PerViewUniformStateUpdater;
 
     class EffectManager;
     class ScreenshotManager;
@@ -80,7 +88,6 @@ namespace MWRender
     class NpcAnimation;
     class Pathgrid;
     class Camera;
-    class ViewOverShoulderController;
     class Water;
     class TerrainStorage;
     class LandManager;
@@ -89,13 +96,15 @@ namespace MWRender
     class RecastMesh;
     class ObjectPaging;
     class Groundcover;
+    class PostProcessor;
 
     class RenderingManager : public MWRender::RenderingInterface
     {
     public:
         RenderingManager(osgViewer::Viewer* viewer, osg::ref_ptr<osg::Group> rootNode,
-                         Resource::ResourceSystem* resourceSystem, SceneUtil::WorkQueue* workQueue,
-                         const std::string& resourcePath, DetourNavigator::Navigator& navigator);
+            Resource::ResourceSystem* resourceSystem, SceneUtil::WorkQueue* workQueue, const std::string& resourcePath,
+            DetourNavigator::Navigator& navigator, const MWWorld::GroundcoverStore& groundcoverStore,
+            SceneUtil::UnrefQueue& unrefQueue);
         ~RenderingManager();
 
         osgUtil::IncrementalCompileOperation* getIncrementalCompileOperation();
@@ -105,17 +114,13 @@ namespace MWRender
         Resource::ResourceSystem* getResourceSystem();
 
         SceneUtil::WorkQueue* getWorkQueue();
-        SceneUtil::UnrefQueue* getUnrefQueue();
         Terrain::World* getTerrain();
-
-        osg::Uniform* mUniformNear;
-        osg::Uniform* mUniformFar;
 
         void preloadCommonAssets();
 
         double getReferenceTime() const;
 
-        osg::Group* getLightRoot();
+        SceneUtil::LightManager* getLightRoot();
 
         void setNightEyeFactor(float factor);
 
@@ -127,7 +132,8 @@ namespace MWRender
         void skySetMoonColour(bool red);
 
         void setSunDirection(const osg::Vec3f& direction);
-        void setSunColour(const osg::Vec4f& diffuse, const osg::Vec4f& specular);
+        void setSunColour(const osg::Vec4f& diffuse, const osg::Vec4f& specular, float sunVis);
+        void setNight(bool isNight) { mNight = isNight; }
 
         void configureAmbient(const ESM::Cell* cell);
         void configureFog(const ESM::Cell* cell);
@@ -191,6 +197,8 @@ namespace MWRender
         Animation* getAnimation(const MWWorld::Ptr& ptr);
         const Animation* getAnimation(const MWWorld::ConstPtr& ptr) const;
 
+        PostProcessor* getPostProcessor();
+
         void addWaterRippleEmitter(const MWWorld::Ptr& ptr);
         void removeWaterRippleEmitter(const MWWorld::Ptr& ptr);
         void emitWaterRipple(const osg::Vec3f& pos);
@@ -205,16 +213,20 @@ namespace MWRender
 
         void processChangedSettings(const Settings::CategorySettingVector& settings);
 
-        float getNearClipDistance() const;
+        float getNearClipDistance() const { return mNearClip; }
+        float getViewDistance() const { return mViewDistance; }
+
+        void setViewDistance(float distance, bool delay = false);
 
         float getTerrainHeightAt(const osg::Vec3f& pos);
 
         // camera stuff
         Camera* getCamera() { return mCamera.get(); }
-        const osg::Vec3f& getCameraPosition() const { return mCurrentCameraPos; }
 
         /// temporarily override the field of view with given value.
         void overrideFieldOfView(float val);
+        void setFieldOfView(float val);
+        float getFieldOfView() const;
         /// reset a previous overrideFieldOfView() call, i.e. revert to field of view specified in the settings file.
         void resetFieldOfView();
 
@@ -227,7 +239,7 @@ namespace MWRender
         bool toggleBorders();
 
         void updateActorPath(const MWWorld::ConstPtr& actor, const std::deque<osg::Vec3f>& path,
-                const osg::Vec3f& halfExtents, const osg::Vec3f& start, const osg::Vec3f& end) const;
+            const DetourNavigator::AgentBounds& agentBounds, const osg::Vec3f& start, const osg::Vec3f& end) const;
 
         void removeActorPath(const MWWorld::ConstPtr& actor) const;
 
@@ -238,10 +250,15 @@ namespace MWRender
         bool pagingEnableObject(int type, const MWWorld::ConstPtr& ptr, bool enabled);
         void pagingBlacklistObject(int type, const MWWorld::ConstPtr &ptr);
         bool pagingUnlockCache();
-        void getPagedRefnums(const osg::Vec4i &activeGrid, std::set<ESM::RefNum> &out);
+        void getPagedRefnums(const osg::Vec4i &activeGrid, std::vector<ESM::RefNum>& out);
+
+        void updateProjectionMatrix();
+
+        void setScreenRes(int width, int height);
+
+        void setNavMeshMode(NavMeshMode value);
 
     private:
-        void updateProjectionMatrix();
         void updateTextureFiltering();
         void updateAmbient();
         void setFogColor(const osg::Vec4f& color);
@@ -253,19 +270,18 @@ namespace MWRender
 
         void updateRecastMesh();
 
+        const bool mSkyBlending;
+
         osg::ref_ptr<osgUtil::IntersectionVisitor> getIntersectionVisitor(osgUtil::Intersector* intersector, bool ignorePlayer, bool ignoreActors);
 
         osg::ref_ptr<osgUtil::IntersectionVisitor> mIntersectionVisitor;
 
         osg::ref_ptr<osgViewer::Viewer> mViewer;
         osg::ref_ptr<osg::Group> mRootNode;
-        osg::ref_ptr<osg::Group> mSceneRoot;
+        osg::ref_ptr<SceneUtil::LightManager> mSceneRoot;
         Resource::ResourceSystem* mResourceSystem;
 
-        osg::ref_ptr<GroundcoverUpdater> mGroundcoverUpdater;
-
         osg::ref_ptr<SceneUtil::WorkQueue> mWorkQueue;
-        osg::ref_ptr<SceneUtil::UnrefQueue> mUnrefQueue;
 
         osg::ref_ptr<osg::Light> mSunLight;
 
@@ -278,7 +294,6 @@ namespace MWRender
         std::unique_ptr<Objects> mObjects;
         std::unique_ptr<Water> mWater;
         std::unique_ptr<Terrain::World> mTerrain;
-        std::unique_ptr<Terrain::World> mGroundcoverWorld;
         std::unique_ptr<TerrainStorage> mTerrainStorage;
         std::unique_ptr<ObjectPaging> mObjectPaging;
         std::unique_ptr<Groundcover> mGroundcover;
@@ -287,13 +302,14 @@ namespace MWRender
         std::unique_ptr<ScreenshotManager> mScreenshotManager;
         std::unique_ptr<EffectManager> mEffectManager;
         std::unique_ptr<SceneUtil::ShadowManager> mShadowManager;
+        osg::ref_ptr<PostProcessor> mPostProcessor;
         osg::ref_ptr<NpcAnimation> mPlayerAnimation;
         osg::ref_ptr<SceneUtil::PositionAttitudeTransform> mPlayerNode;
         std::unique_ptr<Camera> mCamera;
-        std::unique_ptr<ViewOverShoulderController> mViewOverShoulderController;
-        osg::Vec3f mCurrentCameraPos;
 
         osg::ref_ptr<StateUpdater> mStateUpdater;
+        osg::ref_ptr<SharedUniformStateUpdater> mSharedUniformStateUpdater;
+        osg::ref_ptr<PerViewUniformStateUpdater> mPerViewUniformStateUpdater;
 
         osg::Vec4f mAmbientColor;
         float mMinimumAmbientLuminance;
@@ -305,6 +321,8 @@ namespace MWRender
         float mFieldOfViewOverride;
         float mFieldOfView;
         float mFirstPersonFieldOfView;
+        bool mUpdateProjectionMatrix = false;
+        bool mNight = false;
 
         void operator = (const RenderingManager&);
         RenderingManager(const RenderingManager&);

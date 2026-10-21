@@ -8,6 +8,7 @@
     #extension GL_EXT_gpu_shader4: require
 #endif
 
+#include "openmw_vertex.h.glsl"
 #if @diffuseMap
 varying vec2 diffuseMapUV;
 #endif
@@ -32,15 +33,16 @@ varying vec3 passNormal;
 #include "vertexcolors.glsl"
 #include "shadows_vertex.glsl"
 #include "lighting.glsl"
+#include "depth.glsl"
 
 void main(void)
 {
-    gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+    gl_Position = mw_modelToClip(gl_Vertex);
 
-    vec4 viewPos = (gl_ModelViewMatrix * gl_Vertex);
+    vec4 viewPos = mw_modelToView(gl_Vertex);
     gl_ClipVertex = viewPos;
     euclideanDepth = length(viewPos.xyz);
-    linearDepth = gl_Position.z;
+    linearDepth = getLinearDepth(gl_Position.z, viewPos.z);
 
 #if @diffuseMap
     diffuseMapUV = (gl_TextureMatrix[@diffuseMapUV] * gl_MultiTexCoord@diffuseMapUV).xy;

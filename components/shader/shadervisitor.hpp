@@ -1,7 +1,11 @@
 #ifndef OPENMW_COMPONENTS_SHADERVISITOR_H
 #define OPENMW_COMPONENTS_SHADERVISITOR_H
 
+#include <array>
+
 #include <osg/NodeVisitor>
+#include <osg/Program>
+#include <osg/Texture2D>
 
 namespace Resource
 {
@@ -18,6 +22,8 @@ namespace Shader
     {
     public:
         ShaderVisitor(ShaderManager& shaderManager, Resource::ImageManager& imageManager, const std::string& defaultShaderPrefix);
+
+        void setProgramTemplate(const osg::Program* programTemplate) { mProgramTemplate = programTemplate; }
 
         /// By default, only bump mapped objects will have a shader added to them.
         /// Setting force = true will cause all objects to render using shaders, regardless of having a bump map.
@@ -41,8 +47,9 @@ namespace Shader
         void setApplyLightingToEnvMaps(bool apply);
 
         void setConvertAlphaTestToAlphaToCoverage(bool convert);
+        void setAdjustCoverageForAlphaTest(bool adjustCoverage);
 
-        void setTranslucentFramebuffer(bool translucent);
+        void setSupportsNormalsRT(bool supports) { mSupportsNormalsRT = supports; }
 
         void apply(osg::Node& node) override;
 
@@ -68,8 +75,9 @@ namespace Shader
         bool mApplyLightingToEnvMaps;
 
         bool mConvertAlphaTestToAlphaToCoverage;
+        bool mAdjustCoverageForAlphaTest;
 
-        bool mTranslucentFramebuffer;
+        bool mSupportsNormalsRT;
 
         ShaderManager& mShaderManager;
         Resource::ImageManager& mImageManager;
@@ -77,7 +85,7 @@ namespace Shader
         struct ShaderRequirements
         {
             ShaderRequirements();
-            ~ShaderRequirements();
+            ~ShaderRequirements() = default;
 
             // <texture stage, texture name>
             std::map<int, std::string> mTextures;
@@ -85,7 +93,7 @@ namespace Shader
             bool mShaderRequired;
 
             int mColorMode;
-            
+
             bool mMaterialOverridden;
             bool mAlphaTestOverridden;
             bool mAlphaBlendOverridden;
@@ -94,10 +102,15 @@ namespace Shader
             float mAlphaRef;
             bool mAlphaBlend;
 
+            bool mBlendFuncOverridden;
+            bool mAdditiveBlending;
+
             bool mNormalHeight; // true if normal map has height info in alpha channel
 
             // -1 == no tangents required
             int mTexStageRequiringTangents;
+
+            bool mSoftParticles;
 
             // the Node that requested these requirements
             osg::Node* mNode;
@@ -109,6 +122,8 @@ namespace Shader
         void createProgram(const ShaderRequirements& reqs);
         void ensureFFP(osg::Node& node);
         bool adjustGeometry(osg::Geometry& sourceGeometry, const ShaderRequirements& reqs);
+
+        osg::ref_ptr<const osg::Program> mProgramTemplate;
     };
 
     class ReinstateRemovedStateVisitor : public osg::NodeVisitor

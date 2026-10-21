@@ -1,4 +1,5 @@
 #include "data.hpp"
+#include "nifkey.hpp"
 #include "node.hpp"
 
 namespace Nif
@@ -32,6 +33,13 @@ void NiSkinInstance::post(NIFFile *nif)
             nif->fail("Oops: Missing bone! Don't know how to handle this.");
         bones[i]->setBone();
     }
+}
+
+void BSDismemberSkinInstance::read(NIFStream *nif)
+{
+    NiSkinInstance::read(nif);
+    unsigned int numPartitions = nif->getUInt();
+    nif->skip(4 * numPartitions); // Body part information
 }
 
 void NiGeometryData::read(NIFStream *nif)
@@ -421,7 +429,7 @@ void NiMorphData::read(NIFStream *nif)
     for(int i = 0;i < morphCount;i++)
     {
         mMorphs[i].mKeyFrames = std::make_shared<FloatKeyMap>();
-        mMorphs[i].mKeyFrames->read(nif, true, /*morph*/true);
+        mMorphs[i].mKeyFrames->read(nif, /*morph*/true);
         nif->getVector3s(mMorphs[i].mVertices, vertCount);
     }
 }
@@ -432,15 +440,14 @@ void NiKeyframeData::read(NIFStream *nif)
     mRotations->read(nif);
     if(mRotations->mInterpolationType == InterpolationType_XYZ)
     {
-        //Chomp unused float
         if (nif->getVersion() <= NIFStream::generateVersion(10,1,0,0))
-            nif->getFloat();
+            mAxisOrder = static_cast<AxisOrder>(nif->getInt());
         mXRotations = std::make_shared<FloatKeyMap>();
         mYRotations = std::make_shared<FloatKeyMap>();
         mZRotations = std::make_shared<FloatKeyMap>();
-        mXRotations->read(nif, true);
-        mYRotations->read(nif, true);
-        mZRotations->read(nif, true);
+        mXRotations->read(nif);
+        mYRotations->read(nif);
+        mZRotations->read(nif);
     }
     mTranslations = std::make_shared<Vector3KeyMap>();
     mTranslations->read(nif);

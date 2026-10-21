@@ -3,11 +3,10 @@
 #ifndef OPENMW_COMPONENTS_NIF_NIFFILE_HPP
 #define OPENMW_COMPONENTS_NIF_NIFFILE_HPP
 
-#include <stdexcept>
 #include <vector>
+#include <atomic>
 
-#include <components/debug/debuglog.hpp>
-#include <components/files/constrainedfilestream.hpp>
+#include <components/files/istreamptr.hpp>
 
 #include "record.hpp"
 
@@ -34,6 +33,8 @@ struct File
 
     virtual std::string getFilename() const = 0;
 
+    virtual std::string getHash() const = 0;
+
     virtual unsigned int getVersion() const = 0;
 
     virtual unsigned int getUserVersion() const = 0;
@@ -50,9 +51,10 @@ class NIFFile final : public File
 
     /// File name, used for error messages and opening the file
     std::string filename;
+    std::string hash;
 
     /// Record list
-    std::vector<Record*> records;
+    std::vector<std::unique_ptr<Record>> records;
 
     /// Root list.  This is a select portion of the pointers from records
     std::vector<Record*> roots;
@@ -62,10 +64,10 @@ class NIFFile final : public File
 
     bool mUseSkinning = false;
 
-    static bool sLoadUnsupportedFiles;
+    static std::atomic_bool sLoadUnsupportedFiles;
 
     /// Parse the file
-    void parse(Files::IStreamPtr stream);
+    void parse(Files::IStreamPtr&& stream);
 
     /// Get the file's version in a human readable form
     ///\returns A string containing a human readable NIF version number
@@ -92,27 +94,18 @@ public:
     };
 
     /// Used if file parsing fails
-    void fail(const std::string &msg) const
-    {
-        std::string err = " NIFFile Error: " + msg;
-        err += "\nFile: " + filename;
-        throw std::runtime_error(err);
-    }
+    [[noreturn]] void fail(const std::string &msg) const;
+
     /// Used when something goes wrong, but not catastrophically so
-    void warn(const std::string &msg) const
-    {
-        Log(Debug::Warning) << " NIFFile Warning: " << msg << "\nFile: " << filename;
-    }
+    void warn(const std::string &msg) const;
 
     /// Open a NIF stream. The name is used for error messages.
-    NIFFile(Files::IStreamPtr stream, const std::string &name);
-    ~NIFFile();
+    NIFFile(Files::IStreamPtr&& stream, const std::string &name);
 
     /// Get a given record
     Record *getRecord(size_t index) const override
     {
-        Record *res = records.at(index);
-        return res;
+        return records.at(index).get();
     }
     /// Number of records
     size_t numRecords() const override { return records.size(); }
@@ -127,12 +120,7 @@ public:
     size_t numRoots() const override { return roots.size(); }
 
     /// Get a given string from the file's string table
-    std::string getString(uint32_t index) const override
-    {
-        if (index == std::numeric_limits<uint32_t>::max())
-            return std::string();
-        return strings.at(index);
-    }
+    std::string getString(uint32_t index) const override;
 
     /// Set whether there is skinning contained in this NIF file.
     /// @note This is just a hint for users of the NIF file and has no effect on the loading procedure.
@@ -142,6 +130,8 @@ public:
 
     /// Get the name of the file
     std::string getFilename() const override { return filename; }
+
+    std::string getHash() const override { return hash; }
 
     /// Get the version of the NIF format used
     unsigned int getVersion() const override { return ver; }

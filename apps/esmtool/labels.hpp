@@ -2,6 +2,7 @@
 #define OPENMW_ESMTOOL_LABELS_H
 
 #include <string>
+#include <cstdint>
 
 std::string bodyPartLabel(int idx);
 std::string meshPartLabel(int idx);
@@ -59,6 +60,8 @@ std::string npcFlags(int flags);
 std::string raceFlags(int flags);
 std::string spellFlags(int flags);
 std::string weaponFlags(int flags);
+
+std::string recordFlags(uint32_t flags);
 
 // Missing flags functions:
 // aiServicesFlags, possibly more

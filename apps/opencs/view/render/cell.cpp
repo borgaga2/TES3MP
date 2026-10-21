@@ -1,23 +1,14 @@
 #include "cell.hpp"
 
-#include <math.h>
-
 #include <osg/PositionAttitudeTransform>
-#include <osg/Geode>
-#include <osg/Geometry>
 #include <osg/Group>
 
 #include <components/misc/stringops.hpp>
-#include <components/esm/loadcell.hpp>
-#include <components/esm/loadland.hpp>
-#include <components/sceneutil/pathgridutil.hpp>
+#include <components/esm3/loadcell.hpp>
+#include <components/esm3/loadland.hpp>
 #include <components/terrain/terraingrid.hpp>
 
 #include "../../model/world/idtable.hpp"
-#include "../../model/world/columns.hpp"
-#include "../../model/world/data.hpp"
-#include "../../model/world/refcollection.hpp"
-#include "../../model/world/cellcoordinates.hpp"
 
 #include "cellwater.hpp"
 #include "cellborder.hpp"
@@ -93,7 +84,7 @@ bool CSVRender::Cell::addObjects (int start, int end)
         {
             std::string id = Misc::StringUtils::lowerCase (collection.getRecord (i).get().mId);
 
-            std::unique_ptr<Object> object (new Object (mData, mCellNode, id, false));
+            auto object = std::make_unique<Object>(mData, mCellNode, id, false);
 
             if (mSubModeElementMask & Mask_Reference)
                 object->setSubMode (mSubMode);
@@ -136,14 +127,14 @@ void CSVRender::Cell::updateLand()
             }
             else
             {
-                mTerrain.reset(new Terrain::TerrainGrid(mCellNode, mCellNode,
-                    mData.getResourceSystem().get(), mTerrainStorage, Mask_Terrain));
+                mTerrain = std::make_unique<Terrain::TerrainGrid>(mCellNode, mCellNode,
+                    mData.getResourceSystem().get(), mTerrainStorage, Mask_Terrain);
             }
 
             mTerrain->loadCell(esmLand.mX, esmLand.mY);
 
             if (!mCellBorder)
-                mCellBorder.reset(new CellBorder(mCellNode, mCoordinates));
+                mCellBorder = std::make_unique<CellBorder>(mCellNode, mCoordinates);
 
             mCellBorder->buildShape(esmLand);
 
@@ -194,8 +185,8 @@ CSVRender::Cell::Cell (CSMWorld::Data& data, osg::Group* rootNode, const std::st
 
         updateLand();
 
-        mPathgrid.reset(new Pathgrid(mData, mCellNode, mId, mCoordinates));
-        mCellWater.reset(new CellWater(mData, mCellNode, mId, mCoordinates));
+        mPathgrid = std::make_unique<Pathgrid>(mData, mCellNode, mId, mCoordinates);
+        mCellWater = std::make_unique<CellWater>(mData, mCellNode, mId, mCoordinates);
     }
 }
 
@@ -554,7 +545,7 @@ void CSVRender::Cell::setCellArrows (int mask)
         if (enable!=(mCellArrows[i].get()!=nullptr))
         {
             if (enable)
-                mCellArrows[i].reset (new CellArrow (mCellNode, direction, mCoordinates));
+                mCellArrows[i] = std::make_unique<CellArrow>(mCellNode, direction, mCoordinates);
             else
                 mCellArrows[i].reset (nullptr);
         }
@@ -575,7 +566,7 @@ void CSVRender::Cell::setCellMarker()
     }
 
     if (!isInteriorCell) {
-        mCellMarker.reset(new CellMarker(mCellNode, mCoordinates, cellExists));
+        mCellMarker = std::make_unique<CellMarker>(mCellNode, mCoordinates, cellExists);
     }
 }
 

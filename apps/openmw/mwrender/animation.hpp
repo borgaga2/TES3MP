@@ -6,8 +6,11 @@
 #include <components/sceneutil/controller.hpp>
 #include <components/sceneutil/textkeymap.hpp>
 #include <components/sceneutil/util.hpp>
+#include <components/sceneutil/nodecallback.hpp>
+#include <components/misc/stringops.hpp>
 
 #include <vector>
+#include <unordered_map>
 
 namespace ESM
 {
@@ -58,7 +61,7 @@ public:
 
     ~PartHolder();
 
-    osg::ref_ptr<osg::Node> getNode()
+    const osg::ref_ptr<osg::Node>& getNode() const
     {
         return mNode;
     }
@@ -69,7 +72,7 @@ private:
     void operator= (const PartHolder&);
     PartHolder(const PartHolder&);
 };
-typedef std::shared_ptr<PartHolder> PartHolderPtr;
+using PartHolderPtr = std::unique_ptr<PartHolder>;
 
 struct EffectParams
 {
@@ -146,7 +149,7 @@ public:
     class TextKeyListener
     {
     public:
-        virtual void handleTextKey(const std::string &groupname, SceneUtil::TextKeyMap::ConstIterator key,
+        virtual void handleTextKey(std::string_view groupname, SceneUtil::TextKeyMap::ConstIterator key,
                                    const SceneUtil::TextKeyMap& map) = 0;
 
         virtual ~TextKeyListener() = default;
@@ -155,6 +158,8 @@ public:
     void setTextKeyListener(TextKeyListener* listener);
 
     virtual bool updateCarriedLeftVisible(const int weaptype) const { return false; };
+
+    typedef std::unordered_map<std::string, osg::ref_ptr<osg::MatrixTransform>, Misc::StringUtils::CiHash, Misc::StringUtils::CiEqual> NodeMap;
 
 protected:
     class AnimationTime : public SceneUtil::ControllerSource
@@ -207,7 +212,7 @@ protected:
                       mLoopCount(0), mPriority(0), mBlendMask(0), mAutoDisable(true)
         {
         }
-        ~AnimState();
+        ~AnimState() = default;
 
         float getTime() const
         {
@@ -245,12 +250,10 @@ protected:
 
     // Keep track of controllers that we added to our scene graph.
     // We may need to rebuild these controllers when the active animation groups / sources change.
-    std::vector<std::pair<osg::ref_ptr<osg::Node>, osg::ref_ptr<osg::NodeCallback>>> mActiveControllers;
+    std::vector<std::pair<osg::ref_ptr<osg::Node>, osg::ref_ptr<osg::Callback>>> mActiveControllers;
 
     std::shared_ptr<AnimationTime> mAnimationTimePtr[sNumBlendMasks];
 
-    // Stored in all lowercase for a case-insensitive lookup
-    typedef std::map<std::string, osg::ref_ptr<osg::MatrixTransform> > NodeMap;
     mutable NodeMap mNodeMap;
     mutable bool mNodeMapCreated;
 
@@ -271,7 +274,7 @@ protected:
     float mLegsYawRadians;
     float mBodyPitchRadians;
 
-    RotateController* addRotateController(std::string bone);
+    RotateController* addRotateController(const std::string& bone);
 
     bool mHasMagicEffects;
 
@@ -341,6 +344,8 @@ protected:
      */
     virtual void addControllers();
 
+    void removeFromSceneImpl();
+
 public:
 
     Animation(const MWWorld::Ptr &ptr, osg::ref_ptr<osg::Group> parentNode, Resource::ResourceSystem* resourceSystem);
@@ -348,9 +353,9 @@ public:
     /// Must be thread safe
     virtual ~Animation();
 
-    MWWorld::ConstPtr getPtr() const;
+    MWWorld::ConstPtr getPtr() const { return mPtr; }
 
-    MWWorld::Ptr getPtr();
+    MWWorld::Ptr getPtr() { return mPtr; }
 
     /// Set active flag on the object skeleton, if one exists.
     /// @see SceneUtil::Skeleton::setActive
@@ -382,7 +387,7 @@ public:
 
     virtual void updatePtr(const MWWorld::Ptr &ptr);
 
-    bool hasAnimation(const std::string &anim) const;
+    bool hasAnimation(std::string_view anim) const;
 
     // Specifies the axis' to accumulate on. Non-accumulated axis will just
     // move visually, but not affect the actual movement. Each x/y/z value
@@ -494,6 +499,8 @@ public:
     virtual void setAccurateAiming(bool enabled) {}
     virtual bool canBeHarvested() const { return false; }
 
+    virtual void removeFromScene();
+
 private:
     Animation(const Animation&);
     void operator=(Animation&);
@@ -506,7 +513,7 @@ public:
     bool canBeHarvested() const override;
 };
 
-class UpdateVfxCallback : public osg::NodeCallback
+class UpdateVfxCallback : public SceneUtil::NodeCallback<UpdateVfxCallback>
 {
 public:
     UpdateVfxCallback(EffectParams& params)
@@ -519,7 +526,7 @@ public:
     bool mFinished;
     EffectParams mParams;
 
-    void operator()(osg::Node* node, osg::NodeVisitor* nv) override;
+    void operator()(osg::Node* node, osg::NodeVisitor* nv);
 
 private:
     double mStartingTime;

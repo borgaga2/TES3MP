@@ -2,13 +2,10 @@
 
 #include <algorithm>
 
-#include <QEvent>
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
 #include <QMouseEvent>
-#include <QKeyEvent>
-#include <QApplication>
 #include <QToolTip>
 
 #include <osgUtil/LineSegmentIntersector>
@@ -464,7 +461,6 @@ void CSVRender::WorldspaceWidget::abortDrag()
         EditMode& editMode = dynamic_cast<CSVRender::EditMode&> (*mEditMode->getCurrent());
 
         editMode.dragAborted();
-        mDragging = false;
         mDragMode = InteractionType_None;
     }
 }
@@ -597,7 +593,7 @@ void CSVRender::WorldspaceWidget::showToolTip()
         if (hit.tag)
         {
             bool hideBasics = CSMPrefs::get()["Tooltips"]["scene-hide-basic"].isTrue();
-            QToolTip::showText (pos, hit.tag->getToolTip (hideBasics), this);
+            QToolTip::showText(pos, hit.tag->getToolTip(hideBasics, hit), this);
         }
     }
 }

@@ -3,38 +3,26 @@
 
 #include <components/terrain/quadtreeworld.hpp>
 #include <components/resource/scenemanager.hpp>
-#include <components/sceneutil/statesetupdater.hpp>
-#include <components/esm/loadcell.hpp>
+#include <components/esm3/loadcell.hpp>
+
+namespace MWWorld
+{
+    class ESMStore;
+    class GroundcoverStore;
+}
+namespace osg
+{
+    class Program;
+}
 
 namespace MWRender
 {
-    class GroundcoverUpdater : public SceneUtil::StateSetUpdater
+    typedef std::tuple<osg::Vec2f, float> GroundcoverChunkId; // Center, Size
+    class Groundcover : public Resource::GenericResourceManager<GroundcoverChunkId>, public Terrain::QuadTreeWorld::ChunkManager
     {
     public:
-        GroundcoverUpdater()
-            : mWindSpeed(0.f)
-            , mPlayerPos(osg::Vec3f())
-        {
-        }
-
-        void setWindSpeed(float windSpeed);
-        void setPlayerPos(osg::Vec3f playerPos);
-
-    protected:
-        void setDefaults(osg::StateSet *stateset) override;
-        void apply(osg::StateSet *stateset, osg::NodeVisitor *nv) override;
-
-    private:
-        float mWindSpeed;
-        osg::Vec3f mPlayerPos;
-    };
-
-    typedef std::tuple<osg::Vec2f, float, bool> ChunkId; // Center, Size, ActiveGrid
-    class Groundcover : public Resource::GenericResourceManager<ChunkId>, public Terrain::QuadTreeWorld::ChunkManager
-    {
-    public:
-        Groundcover(Resource::SceneManager* sceneManager, float density);
-        ~Groundcover() = default;
+        Groundcover(Resource::SceneManager* sceneManager, float density, float viewDistance, const MWWorld::GroundcoverStore& store);
+        ~Groundcover();
 
         osg::ref_ptr<osg::Node> getChunk(float size, const osg::Vec2f& center, unsigned char lod, unsigned int lodFlags, bool activeGrid, const osg::Vec3f& viewPoint, bool compile) override;
 
@@ -46,19 +34,17 @@ namespace MWRender
         {
             ESM::Position mPos;
             float mScale;
-            std::string mModel;
 
-            GroundcoverEntry(const ESM::CellRef& ref, const std::string& model)
-            {
-                mPos = ref.mPos;
-                mScale = ref.mScale;
-                mModel = model;
-            }
+            GroundcoverEntry(const ESM::CellRef& ref) : mPos(ref.mPos), mScale(ref.mScale)
+            {}
         };
 
     private:
         Resource::SceneManager* mSceneManager;
         float mDensity;
+        osg::ref_ptr<osg::StateSet> mStateset;
+        osg::ref_ptr<osg::Program> mProgramTemplate;
+        const MWWorld::GroundcoverStore& mGroundcoverStore;
 
         typedef std::map<std::string, std::vector<GroundcoverEntry>> InstanceMap;
         osg::ref_ptr<osg::Node> createChunk(InstanceMap& instances, const osg::Vec2f& center);

@@ -1,5 +1,7 @@
 #include "charactercreation.hpp"
 
+#include <MyGUI_ITexture.h>
+
 #include <components/debug/debuglog.hpp>
 #include <components/fallback/fallback.hpp>
 #include <components/misc/rng.hpp>
@@ -82,13 +84,6 @@ namespace
             default:
                 return {question, {r2, r1, r0}, sound};
         }
-    }
-
-    void updatePlayerHealth()
-    {
-        MWWorld::Ptr player = MWMechanics::getPlayer();
-        MWMechanics::NpcStats& npcStats = player.getClass().getNpcStats(player);
-        npcStats.updateHealth();
     }
 }
 
@@ -267,7 +262,7 @@ namespace MWGui
                     break;
                 case GM_ClassGenerate:
                     mGenerateClassStep = 0;
-                    mGenerateClass = "";
+                    mGenerateClass.clear();
                     mGenerateClassSpecializations[0] = 0;
                     mGenerateClassSpecializations[1] = 0;
                     mGenerateClassSpecializations[2] = 0;
@@ -393,8 +388,6 @@ namespace MWGui
             MWBase::Environment::get().getWindowManager()->removeDialog(mPickClassDialog);
             mPickClassDialog = nullptr;
         }
-
-        updatePlayerHealth();
     }
 
     void CharacterCreation::onPickClassDialogDone(WindowBase* parWindow)
@@ -511,8 +504,6 @@ namespace MWGui
             MWBase::Environment::get().getWindowManager()->removeDialog(mRaceDialog);
             mRaceDialog = nullptr;
         }
-
-        updatePlayerHealth();
     }
 
     void CharacterCreation::onRaceDialogBack()
@@ -550,8 +541,6 @@ namespace MWGui
             MWBase::Environment::get().getWindowManager()->removeDialog(mBirthSignDialog);
             mBirthSignDialog = nullptr;
         }
-
-        updatePlayerHealth();
     }
 
     void CharacterCreation::onBirthSignDialogDone(WindowBase* parWindow)
@@ -598,6 +587,7 @@ namespace MWGui
             klass.mDescription = mCreateClassDialog->getDescription();
             klass.mData.mSpecialization = mCreateClassDialog->getSpecializationId();
             klass.mData.mIsPlayable = 0x1;
+            klass.mRecordFlags = 0;
 
             std::vector<int> attributes = mCreateClassDialog->getFavoriteAttributes();
             assert(attributes.size() == 2);
@@ -620,7 +610,6 @@ namespace MWGui
             // Do not delete dialog, so that choices are remembered in case we want to go back and adjust them later
             mCreateClassDialog->setVisible(false);
         }
-        updatePlayerHealth();
     }
 
     void CharacterCreation::onCreateClassDialogDone(WindowBase* parWindow)
@@ -832,8 +821,6 @@ namespace MWGui
             MWBase::Environment::get().getWorld()->getStore().get<ESM::Class>().find(mGenerateClass);
 
         mPlayerClass = *klass;
-
-        updatePlayerHealth();
     }
 
     void CharacterCreation::onGenerateClassBack()

@@ -6,12 +6,11 @@
 #include <sstream>
 #include <stdexcept>
 
-#include <QColor>
 #include <QVector>
 
-#include <components/esm/loadbody.hpp>
-#include <components/esm/loadskil.hpp>
-#include <components/esm/loadrace.hpp>
+#include <components/esm3/loadbody.hpp>
+#include <components/esm3/loadskil.hpp>
+#include <components/esm3/loadrace.hpp>
 
 #include "columnbase.hpp"
 #include "columns.hpp"
@@ -334,7 +333,8 @@ namespace CSMWorld
     template<typename ESXRecordT>
     struct NameColumn : public Column<ESXRecordT>
     {
-        NameColumn() : Column<ESXRecordT> (Columns::ColumnId_Name, ColumnBase::Display_String) {}
+        NameColumn(ColumnBase::Display display = ColumnBase::Display_String)
+        : Column<ESXRecordT> (Columns::ColumnId_Name, display) {}
 
         QVariant get (const Record<ESXRecordT>& record) const override
         {

@@ -9,6 +9,7 @@
 // correctIconPath
 #include <components/resource/resourcesystem.hpp>
 #include <components/vfs/manager.hpp>
+#include <components/misc/resourcehelpers.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/windowmanager.hpp"
@@ -19,8 +20,27 @@ namespace
 {
     std::string getCountString(int count)
     {
+        static const int fontHeight = MWBase::Environment::get().getWindowManager()->getFontHeight();
+
         if (count == 1)
             return "";
+
+        // With small text size we can use up to 4 characters, while with large ones - only up to 3.
+        if (fontHeight > 16)
+        {
+            if (count > 999999999)
+                return MyGUI::utility::toString(count/1000000000) + "b";
+            else if (count > 99999999)
+                return ">9m";
+            else if (count > 999999)
+                return MyGUI::utility::toString(count/1000000) + "m";
+            else if (count > 99999)
+                return ">9k";
+            else if (count > 999)
+                return MyGUI::utility::toString(count/1000) + "k";
+            else
+                return MyGUI::utility::toString(count);
+        }
 
         if (count > 999999999)
             return MyGUI::utility::toString(count/1000000000) + "b";
@@ -110,11 +130,12 @@ namespace MWGui
         std::string invIcon = ptr.getClass().getInventoryIcon(ptr);
         if (invIcon.empty())
             invIcon = "default icon.tga";
-        invIcon = MWBase::Environment::get().getWindowManager()->correctIconPath(invIcon);
-        if (!MWBase::Environment::get().getResourceSystem()->getVFS()->exists(invIcon))
+        const VFS::Manager* const vfs = MWBase::Environment::get().getResourceSystem()->getVFS();
+        invIcon = Misc::ResourceHelpers::correctIconPath(invIcon, vfs);
+        if (!vfs->exists(invIcon))
         {
             Log(Debug::Error) << "Failed to open image: '" << invIcon << "' not found, falling back to 'default-icon.tga'";
-            invIcon = MWBase::Environment::get().getWindowManager()->correctIconPath("default icon.tga");
+            invIcon = Misc::ResourceHelpers::correctIconPath("default icon.tga", vfs);
         }
         setIcon(invIcon);
     }
@@ -146,7 +167,7 @@ namespace MWGui
         if (state == None)
         {
             if (!isMagic)
-                backgroundTex = "";
+                backgroundTex.clear();
         }
         else if (state == Equip)
         {

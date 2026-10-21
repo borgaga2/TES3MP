@@ -1,5 +1,7 @@
 #version 120
 
+#include "openmw_vertex.h.glsl"
+
 #if @diffuseMap
 varying vec2 diffuseMapUV;
 #endif
@@ -17,17 +19,18 @@ varying vec3 passViewPos;
 varying float passFalloff;
 
 #include "vertexcolors.glsl"
+#include "depth.glsl"
 
 void main(void)
 {
-    gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+    gl_Position = mw_modelToClip(gl_Vertex);
 
-    vec4 viewPos = (gl_ModelViewMatrix * gl_Vertex);
+    vec4 viewPos = mw_modelToView(gl_Vertex);
     gl_ClipVertex = viewPos;
 #if @radialFog
     euclideanDepth = length(viewPos.xyz);
 #else
-    linearDepth = gl_Position.z;
+    linearDepth = getLinearDepth(gl_Position.z, viewPos.z);
 #endif
 
 #if @diffuseMap

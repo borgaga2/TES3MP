@@ -4,22 +4,18 @@
 #include <memory>
 #include <stdexcept>
 
-#include <QGridLayout>
-#include <QLabel>
-#include <QSize>
 #include <QAbstractItemModel>
-#include <QDoubleSpinBox>
-#include <QSpinBox>
-#include <QLineEdit>
-#include <QEvent>
-#include <QDataWidgetMapper>
 #include <QCheckBox>
-#include <QLineEdit>
-#include <QPlainTextEdit>
 #include <QComboBox>
+#include <QDataWidgetMapper>
+#include <QGridLayout>
 #include <QHeaderView>
-#include <QScrollBar>
+#include <QLabel>
+#include <QLineEdit>
 #include <QMenu>
+#include <QPlainTextEdit>
+#include <QScrollBar>
+#include <QSize>
 
 #include "../../model/world/nestedtableproxymodel.hpp"
 #include "../../model/world/columnbase.hpp"
@@ -133,7 +129,7 @@ void CSVWorld::DialogueDelegateDispatcherProxy::editorDataCommited()
 
 void CSVWorld::DialogueDelegateDispatcherProxy::setIndex(const QModelIndex& index)
 {
-    mIndexWrapper.reset(new refWrapper(index));
+    mIndexWrapper = std::make_unique<refWrapper>(index);
 }
 
 QWidget* CSVWorld::DialogueDelegateDispatcherProxy::getEditor() const
@@ -538,6 +534,9 @@ void CSVWorld::EditWidget::remake(int row)
     mainLayout->addLayout(tablesLayout, QSizePolicy::Preferred);
     mainLayout->addStretch(1);
 
+    int blockedColumn = mTable->searchColumnIndex(CSMWorld::Columns::ColumnId_Blocked);
+    bool isBlocked = mTable->data(mTable->index(row, blockedColumn)).toInt();
+
     int unlocked = 0;
     int locked = 0;
     const int columns = mTable->columnCount();
@@ -583,6 +582,8 @@ void CSVWorld::EditWidget::remake(int row)
                     NestedTable* table =
                         new NestedTable(mDocument, id, mNestedModels.back(), this, editable, fixedRows);
                     table->resizeColumnsToContents();
+                    if (isBlocked)
+                        table->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
                     int rows = mTable->rowCount(mTable->index(row, i));
                     int rowHeight = (rows == 0) ? table->horizontalHeader()->height() : table->rowHeight(0);
@@ -617,7 +618,9 @@ void CSVWorld::EditWidget::remake(int row)
                     label->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Fixed);
                     editor->setSizePolicy (QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
 
-                    if (! (mTable->flags (mTable->index (row, i)) & Qt::ItemIsEditable))
+                    // HACK: the blocked checkbox needs to keep the same position
+                    // FIXME: unfortunately blocked record displays a little differently to unblocked one
+                    if (!(mTable->flags (mTable->index (row, i)) & Qt::ItemIsEditable) || i == blockedColumn)
                     {
                         lockedLayout->addWidget (label, locked, 0);
                         lockedLayout->addWidget (editor, locked, 1);
@@ -639,7 +642,7 @@ void CSVWorld::EditWidget::remake(int row)
                     createEditorContextMenu(editor, display, row);
                 }
             }
-            else
+            else // Flag_Dialogue_List
             {
                 CSMWorld::IdTree *tree = static_cast<CSMWorld::IdTree *>(mTable);
                 mNestedTableMapper = new QDataWidgetMapper (this);
@@ -686,7 +689,10 @@ void CSVWorld::EditWidget::remake(int row)
                             label->setEnabled(false);
                         }
 
-                        createEditorContextMenu(editor, display, row);
+                        if (!isBlocked)
+                            createEditorContextMenu(editor, display, row);
+                        else
+                            editor->setEnabled(false);
                     }
                 }
                 mNestedTableMapper->setCurrentModelIndex(tree->index(0, 0, tree->index(row, i)));

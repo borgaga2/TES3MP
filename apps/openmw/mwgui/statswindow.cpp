@@ -6,6 +6,7 @@
 #include <MyGUI_ImageBox.h>
 #include <MyGUI_InputManager.h>
 #include <MyGUI_LanguageManager.h>
+#include <MyGUI_TextIterator.h>
 #include <MyGUI_Gui.h>
 
 #include <components/settings/settings.hpp>
@@ -179,7 +180,7 @@ namespace MWGui
     void StatsWindow::setValue (const std::string& id, const MWMechanics::DynamicStat<float>& value)
     {
         int current = static_cast<int>(value.getCurrent());
-        int modified = static_cast<int>(value.getModified());
+        int modified = static_cast<int>(value.getModified(false));
 
         // Fatigue can be negative
         if (id != "FBar")
@@ -330,6 +331,19 @@ namespace MWGui
         MWWorld::Ptr player = MWMechanics::getPlayer();
         const MWMechanics::NpcStats &PCstats = player.getClass().getNpcStats(player);
 
+        std::string detailText;
+        std::stringstream detail;
+        for (int attribute = 0; attribute < ESM::Attribute::Length; ++attribute)
+        {
+            float mult = PCstats.getLevelupAttributeMultiplier(attribute);
+            mult = std::min(mult, 100 - PCstats.getAttribute(attribute).getBase());
+            if (mult > 1)
+                detail << (detail.str().empty() ? "" : "\n") << "#{"
+                << MyGUI::TextIterator::toTagsString(ESM::Attribute::sGmstAttributeIds[attribute])
+                << "} x" << MyGUI::utility::toString(mult);
+        }
+        detailText = MyGUI::LanguageManager::getInstance().replaceTags(detail.str());
+
         // level progress
         MyGUI::Widget* levelWidget;
         for (int i=0; i<2; ++i)
@@ -341,18 +355,8 @@ namespace MWGui
             levelWidget->setUserString("Range_LevelProgress", MyGUI::utility::toString(max));
             levelWidget->setUserString("Caption_LevelProgressText", MyGUI::utility::toString(PCstats.getLevelProgress()) + "/"
                                        + MyGUI::utility::toString(max));
+            levelWidget->setUserString("Caption_LevelDetailText", detailText);
         }
-        std::stringstream detail;
-        for (int attribute = 0; attribute < ESM::Attribute::Length; ++attribute)
-        {
-            float mult = PCstats.getLevelupAttributeMultiplier(attribute);
-            mult = std::min(mult, 100 - PCstats.getAttribute(attribute).getBase());
-            if (mult > 1)
-                detail << (detail.str().empty() ? "" : "\n") << "#{"
-                << MyGUI::TextIterator::toTagsString(ESM::Attribute::sGmstAttributeIds[attribute])
-                << "} x" << MyGUI::utility::toString(mult);
-        }
-        levelWidget->setUserString("Caption_LevelDetailText", MyGUI::LanguageManager::getInstance().replaceTags(detail.str()));
 
         setFactions(PCstats.getFactionRanks());
         setExpelled(PCstats.getExpelled ());
@@ -599,8 +603,7 @@ namespace MWGui
                     text += "\n#{fontcolourhtml=normal}#{sExpelled}";
                 else
                 {
-                    int rank = factionPair.second;
-                    rank = std::max(0, std::min(9, rank));
+                    const int rank = std::clamp(factionPair.second, 0, 9);
                     text += std::string("\n#{fontcolourhtml=normal}") + faction->mRanks[rank];
 
                     if (rank < 9)

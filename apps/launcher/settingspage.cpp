@@ -2,12 +2,8 @@
 
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QDebug>
 #include <QDir>
-
-#include <components/files/configurationmanager.hpp>
-
-#include <components/config/gamesettings.hpp>
-#include <components/config/launchersettings.hpp>
 
 #include "utils/textinputdialog.hpp"
 #include "datafilespage.hpp"
@@ -132,6 +128,9 @@ void Launcher::SettingsPage::on_importerButton_clicked()
 
     if (addonsCheckBox->isChecked())
         arguments.append(QString("--game-files"));
+
+    if (fontsCheckBox->isChecked())
+        arguments.append(QString("--fonts"));
 
     arguments.append(QString("--encoding"));
     arguments.append(mGameSettings.value(QString("encoding"), QString("win1252")));

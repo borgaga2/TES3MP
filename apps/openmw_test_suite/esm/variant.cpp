@@ -1,7 +1,7 @@
-#include <components/esm/variant.hpp>
-#include <components/esm/esmwriter.hpp>
-#include <components/esm/esmreader.hpp>
-#include <components/esm/loadglob.hpp>
+#include <components/esm3/variant.hpp>
+#include <components/esm3/esmwriter.hpp>
+#include <components/esm3/esmreader.hpp>
+#include <components/esm3/loadglob.hpp>
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
@@ -425,7 +425,7 @@ namespace
     std::string write(const Variant& variant, const Variant::Format format)
     {
         std::ostringstream out;
-        ESM::ESMWriter writer;
+        ESMWriter writer;
         writer.save(out);
         variant.write(writer, format);
         writer.close();
@@ -435,8 +435,8 @@ namespace
     Variant read(const Variant::Format format, const std::string& data)
     {
         Variant result;
-        ESM::ESMReader reader;
-        reader.open(std::make_shared<std::istringstream>(data), "");
+        ESMReader reader;
+        reader.open(std::make_unique<std::istringstream>(data), "");
         result.read(reader, format);
         return result;
     }
@@ -490,7 +490,7 @@ namespace
     {
         const auto param = GetParam();
         std::ostringstream out;
-        ESM::ESMWriter writer;
+        ESMWriter writer;
         writer.save(out);
         ASSERT_THROW(param.mVariant.write(writer, param.mFormat), std::runtime_error);
     }

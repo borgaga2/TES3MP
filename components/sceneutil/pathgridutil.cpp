@@ -1,8 +1,9 @@
 #include "pathgridutil.hpp"
 
 #include <osg/Geometry>
+#include <osg/Material>
 
-#include <components/esm/loadpgrd.hpp>
+#include <components/esm3/loadpgrd.hpp>
 
 namespace SceneUtil
 {
@@ -174,6 +175,11 @@ namespace SceneUtil
                 gridGeometry->addPrimitiveSet(lineIndices);
             gridGeometry->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
         }
+
+        osg::ref_ptr<osg::Material> material = new osg::Material;
+        material->setColorMode(osg::Material::AMBIENT_AND_DIFFUSE);
+        gridGeometry->getOrCreateStateSet()->setAttribute(material);
+
         return gridGeometry;
     }
 

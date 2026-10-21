@@ -8,6 +8,7 @@
     #extension GL_EXT_gpu_shader4: require
 #endif
 
+#include "openmw_vertex.h.glsl"
 varying vec2 uv;
 varying float euclideanDepth;
 varying float linearDepth;
@@ -25,15 +26,16 @@ varying vec3 passNormal;
 #include "shadows_vertex.glsl"
 
 #include "lighting.glsl"
+#include "depth.glsl"
 
 void main(void)
 {
-    gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+    gl_Position = mw_modelToClip(gl_Vertex);
 
-    vec4 viewPos = (gl_ModelViewMatrix * gl_Vertex);
+    vec4 viewPos = mw_modelToView(gl_Vertex);
     gl_ClipVertex = viewPos;
     euclideanDepth = length(viewPos.xyz);
-    linearDepth = gl_Position.z;
+    linearDepth = getLinearDepth(gl_Position.z, viewPos.z);
 
 #if (!PER_PIXEL_LIGHTING || @shadows_enabled)
     vec3 viewNormal = normalize((gl_NormalMatrix * gl_Normal).xyz);

@@ -151,62 +151,11 @@ bool parseOptions (int argc, char** argv, Arguments &info)
     return true;
 }
 
-int list(std::unique_ptr<Bsa::BSAFile>& bsa, Arguments& info);
-int extract(std::unique_ptr<Bsa::BSAFile>& bsa, Arguments& info);
-int extractAll(std::unique_ptr<Bsa::BSAFile>& bsa, Arguments& info);
-int add(std::unique_ptr<Bsa::BSAFile>& bsa, Arguments& info);
-
-int main(int argc, char** argv)
-{
-    try
-    {
-        Arguments info;
-        if(!parseOptions (argc, argv, info))
-            return 1;
-
-        // Open file
-        std::unique_ptr<Bsa::BSAFile> bsa;
-
-        Bsa::BsaVersion bsaVersion = Bsa::CompressedBSAFile::detectVersion(info.filename);
-
-        if (bsaVersion == Bsa::BSAVER_COMPRESSED)
-            bsa = std::make_unique<Bsa::CompressedBSAFile>(Bsa::CompressedBSAFile());
-        else
-            bsa = std::make_unique<Bsa::BSAFile>(Bsa::BSAFile());
-
-        if (info.mode == "create")
-        {
-            bsa->open(info.filename);
-            return 0;
-        }
-
-        bsa->open(info.filename);
-
-        if (info.mode == "list")
-            return list(bsa, info);
-        else if (info.mode == "extract")
-            return extract(bsa, info);
-        else if (info.mode == "extractall")
-            return extractAll(bsa, info);
-        else if (info.mode == "add")
-            return add(bsa, info);
-        else
-        {
-            std::cout << "Unsupported mode. That is not supposed to happen." << std::endl;
-            return 1;
-        }
-    }
-    catch (std::exception& e)
-    {
-        std::cerr << "ERROR reading BSA archive\nDetails:\n" << e.what() << std::endl;
-        return 2;
-    }
-}
-
-int list(std::unique_ptr<Bsa::BSAFile>& bsa, Arguments& info)
+template<typename File>
+int list(std::unique_ptr<File>& bsa, Arguments& info)
 {
     // List all files
-    const Bsa::BSAFile::FileList &files = bsa->getList();
+    const auto &files = bsa->getList();
     for (const auto& file : files)
     {
         if(info.longformat)
@@ -225,7 +174,8 @@ int list(std::unique_ptr<Bsa::BSAFile>& bsa, Arguments& info)
     return 0;
 }
 
-int extract(std::unique_ptr<Bsa::BSAFile>& bsa, Arguments& info)
+template<typename File>
+int extract(std::unique_ptr<File>& bsa, Arguments& info)
 {
     std::string archivePath = info.extractfile;
     Misc::StringUtils::replaceAll(archivePath, "/", "\\");
@@ -233,7 +183,17 @@ int extract(std::unique_ptr<Bsa::BSAFile>& bsa, Arguments& info)
     std::string extractPath = info.extractfile;
     Misc::StringUtils::replaceAll(extractPath, "\\", "/");
 
-    if (!bsa->exists(archivePath.c_str()))
+    Files::IStreamPtr stream;
+    // Get a stream for the file to extract
+    for (auto it = bsa->getList().rbegin(); it != bsa->getList().rend(); ++it)
+    {
+        if (Misc::StringUtils::ciEqual(std::string(it->name()), archivePath))
+        {
+            stream = bsa->getFile(&*it);
+            break;
+        }
+    }
+    if (!stream)
     {
         std::cout << "ERROR: file '" << archivePath << "' not found\n";
         std::cout << "In archive: " << info.filename << std::endl;
@@ -260,9 +220,6 @@ int extract(std::unique_ptr<Bsa::BSAFile>& bsa, Arguments& info)
         return 3;
     }
 
-    // Get a stream for the file to extract
-    Files::IStreamPtr stream = bsa->getFile(archivePath.c_str());
-
     bfs::ofstream out(target, std::ios::binary);
 
     // Write the file to disk
@@ -274,7 +231,8 @@ int extract(std::unique_ptr<Bsa::BSAFile>& bsa, Arguments& info)
     return 0;
 }
 
-int extractAll(std::unique_ptr<Bsa::BSAFile>& bsa, Arguments& info)
+template<typename File>
+int extractAll(std::unique_ptr<File>& bsa, Arguments& info)
 {
     for (const auto &file : bsa->getList())
     {
@@ -296,8 +254,7 @@ int extractAll(std::unique_ptr<Bsa::BSAFile>& bsa, Arguments& info)
         }
 
         // Get a stream for the file to extract
-        // (inefficient because getFile iter on the list again)
-        Files::IStreamPtr data = bsa->getFile(file.name());
+        Files::IStreamPtr data = bsa->getFile(&file);
         bfs::ofstream out(target, std::ios::binary);
 
         // Write the file to disk
@@ -309,10 +266,62 @@ int extractAll(std::unique_ptr<Bsa::BSAFile>& bsa, Arguments& info)
     return 0;
 }
 
-int add(std::unique_ptr<Bsa::BSAFile>& bsa, Arguments& info)
+template<typename File>
+int add(std::unique_ptr<File>& bsa, Arguments& info)
 {
     boost::filesystem::fstream stream(info.addfile, std::ios_base::binary | std::ios_base::out | std::ios_base::in);
     bsa->addFile(info.addfile, stream);
 
     return 0;
+}
+
+template<typename File>
+int call(Arguments& info)
+{
+    std::unique_ptr<File> bsa = std::make_unique<File>();
+    if (info.mode == "create")
+    {
+        bsa->open(info.filename);
+        return 0;
+    }
+
+    bsa->open(info.filename);
+
+    if (info.mode == "list")
+        return list(bsa, info);
+    else if (info.mode == "extract")
+        return extract(bsa, info);
+    else if (info.mode == "extractall")
+        return extractAll(bsa, info);
+    else if (info.mode == "add")
+        return add(bsa, info);
+    else
+    {
+        std::cout << "Unsupported mode. That is not supposed to happen." << std::endl;
+        return 1;
+    }
+}
+
+int main(int argc, char** argv)
+{
+    try
+    {
+        Arguments info;
+        if (!parseOptions(argc, argv, info))
+            return 1;
+
+        // Open file
+
+        Bsa::BsaVersion bsaVersion = Bsa::CompressedBSAFile::detectVersion(info.filename);
+
+        if (bsaVersion == Bsa::BSAVER_COMPRESSED)
+            return call<Bsa::CompressedBSAFile>(info);
+        else
+            return call<Bsa::BSAFile>(info);
+    }
+    catch (std::exception& e)
+    {
+        std::cerr << "ERROR reading BSA archive\nDetails:\n" << e.what() << std::endl;
+        return 2;
+    }
 }

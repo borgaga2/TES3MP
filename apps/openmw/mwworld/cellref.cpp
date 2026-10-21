@@ -1,18 +1,31 @@
 #include "cellref.hpp"
 
-#include <components/esm/objectstate.hpp>
+#include <cassert>
+
+#include <components/debug/debuglog.hpp>
+#include <components/esm3/objectstate.hpp>
 
 namespace MWWorld
 {
 
-    const ESM::RefNum& CellRef::getRefNum() const
+    const ESM::RefNum& CellRef::getOrAssignRefNum(ESM::RefNum& lastAssignedRefNum)
     {
+        if (!mCellRef.mRefNum.isSet())
+        {
+            // Generated RefNums have negative mContentFile
+            assert(lastAssignedRefNum.mContentFile < 0);
+            lastAssignedRefNum.mIndex++;
+            if (lastAssignedRefNum.mIndex == 0)  // mIndex overflow, so mContentFile should be changed
+            {
+                if (lastAssignedRefNum.mContentFile > std::numeric_limits<int32_t>::min())
+                    lastAssignedRefNum.mContentFile--;
+                else
+                    Log(Debug::Error) << "RefNum counter overflow in CellRef::getOrAssignRefNum";
+            }
+            mCellRef.mRefNum = lastAssignedRefNum;
+            mChanged = true;
+        }
         return mCellRef.mRefNum;
-    }
-
-    bool CellRef::hasContentFile() const
-    {
-        return mCellRef.mRefNum.hasContentFile();
     }
 
     void CellRef::unsetRefNum()
@@ -61,21 +74,6 @@ namespace MWWorld
         End of tes3mp addition
     */
 
-    std::string CellRef::getRefId() const
-    {
-        return mCellRef.mRefID;
-    }
-
-    const std::string* CellRef::getRefIdPtr() const
-    {
-        return &mCellRef.mRefID;
-    }
-
-    bool CellRef::getTeleport() const
-    {
-        return mCellRef.mTeleport;
-    }
-
     /*
         Start of tes3mp addition
 
@@ -88,11 +86,6 @@ namespace MWWorld
     /*
         End of tes3mp addition
     */
-
-    ESM::Position CellRef::getDoorDest() const
-    {
-        return mCellRef.mDoorDest;
-    }
 
     /*
         Start of tes3mp addition
@@ -107,11 +100,6 @@ namespace MWWorld
         End of tes3mp addition
     */
 
-    std::string CellRef::getDestCell() const
-    {
-        return mCellRef.mDestCell;
-    }
-
     /*
         Start of tes3mp addition
 
@@ -125,11 +113,6 @@ namespace MWWorld
         End of tes3mp addition
     */
 
-    float CellRef::getScale() const
-    {
-        return mCellRef.mScale;
-    }
-
     void CellRef::setScale(float scale)
     {
         if (scale != mCellRef.mScale)
@@ -139,20 +122,10 @@ namespace MWWorld
         }
     }
 
-    ESM::Position CellRef::getPosition() const
-    {
-        return mCellRef.mPos;
-    }
-
     void CellRef::setPosition(const ESM::Position &position)
     {
         mChanged = true;
         mCellRef.mPos = position;
-    }
-
-    float CellRef::getEnchantmentCharge() const
-    {
-        return mCellRef.mEnchantmentCharge;
     }
 
     float CellRef::getNormalizedEnchantmentCharge(int maxCharge) const
@@ -178,11 +151,6 @@ namespace MWWorld
             mChanged = true;
             mCellRef.mEnchantmentCharge = charge;
         }
-    }
-
-    int CellRef::getCharge() const
-    {
-        return mCellRef.mChargeInt;
     }
 
     void CellRef::setCharge(int charge)
@@ -212,11 +180,6 @@ namespace MWWorld
         }
     }
 
-    float CellRef::getChargeFloat() const
-    {
-        return mCellRef.mChargeFloat;
-    }
-
     void CellRef::setChargeFloat(float charge)
     {
         if (charge != mCellRef.mChargeFloat)
@@ -224,16 +187,6 @@ namespace MWWorld
             mChanged = true;
             mCellRef.mChargeFloat = charge;
         }
-    }
-
-    std::string CellRef::getOwner() const
-    {
-        return mCellRef.mOwner;
-    }
-
-    std::string CellRef::getGlobalVariable() const
-    {
-        return mCellRef.mGlobalVariable;
     }
 
     void CellRef::resetGlobalVariable()
@@ -254,11 +207,6 @@ namespace MWWorld
         }
     }
 
-    int CellRef::getFactionRank() const
-    {
-        return mCellRef.mFactionRank;
-    }
-
     void CellRef::setOwner(const std::string &owner)
     {
         if (owner != mCellRef.mOwner)
@@ -266,11 +214,6 @@ namespace MWWorld
             mChanged = true;
             mCellRef.mOwner = owner;
         }
-    }
-
-    std::string CellRef::getSoul() const
-    {
-        return mCellRef.mSoul;
     }
 
     void CellRef::setSoul(const std::string &soul)
@@ -282,11 +225,6 @@ namespace MWWorld
         }
     }
 
-    std::string CellRef::getFaction() const
-    {
-        return mCellRef.mFaction;
-    }
-
     void CellRef::setFaction(const std::string &faction)
     {
         if (faction != mCellRef.mFaction)
@@ -294,11 +232,6 @@ namespace MWWorld
             mChanged = true;
             mCellRef.mFaction = faction;
         }
-    }
-
-    int CellRef::getLockLevel() const
-    {
-        return mCellRef.mLockLevel;
     }
 
     void CellRef::setLockLevel(int lockLevel)
@@ -323,16 +256,6 @@ namespace MWWorld
         setLockLevel(-abs(mCellRef.mLockLevel)); //Makes lockLevel negative
     }
 
-    std::string CellRef::getKey() const
-    {
-        return mCellRef.mKey;
-    }
-
-    std::string CellRef::getTrap() const
-    {
-        return mCellRef.mTrap;
-    }
-
     void CellRef::setTrap(const std::string& trap)
     {
         if (trap != mCellRef.mTrap)
@@ -340,11 +263,6 @@ namespace MWWorld
             mChanged = true;
             mCellRef.mTrap = trap;
         }
-    }
-
-    int CellRef::getGoldValue() const
-    {
-        return mCellRef.mGoldValue;
     }
 
     void CellRef::setGoldValue(int value)
@@ -359,11 +277,6 @@ namespace MWWorld
     void CellRef::writeState(ESM::ObjectState &state) const
     {
         state.mRef = mCellRef;
-    }
-
-    bool CellRef::hasChanged() const
-    {
-        return mChanged;
     }
 
 }

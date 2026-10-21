@@ -1,4 +1,4 @@
-#include <components/esm/loaddial.hpp>
+#include <components/esm3/loaddial.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/world.hpp"
@@ -47,18 +47,8 @@ namespace MWDialogue
 
         void tokenizeKeywords(const std::string & text, std::vector<Token> & tokens)
         {
-            const MWWorld::Store<ESM::Dialogue> & dialogs =
-                MWBase::Environment::get().getWorld()->getStore().get<ESM::Dialogue>();
-
-            std::list<std::string> keywordList;
-            for (MWWorld::Store<ESM::Dialogue>::iterator it = dialogs.begin(); it != dialogs.end(); ++it)
-                keywordList.push_back(Misc::StringUtils::lowerCase(it->mId));
-            keywordList.sort(Misc::StringUtils::ciLess);
-
-            KeywordSearch<std::string, int /*unused*/> keywordSearch;
-
-            for (std::list<std::string>::const_iterator it = keywordList.begin(); it != keywordList.end(); ++it)
-                keywordSearch.seed(*it, 0 /*unused*/);
+            const auto& keywordSearch =
+                MWBase::Environment::get().getWorld()->getStore().get<ESM::Dialogue>().getDialogIdKeywordSearch();
 
             std::vector<KeywordSearch<std::string, int /*unused*/>::Match> matches;
             keywordSearch.highlightKeywords(text.begin(), text.end(), matches);

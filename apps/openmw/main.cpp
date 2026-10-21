@@ -1,12 +1,17 @@
 #include <components/version/version.hpp>
 #include <components/files/configurationmanager.hpp>
-#include <components/files/escape.hpp>
 #include <components/fallback/fallback.hpp>
 #include <components/fallback/validate.hpp>
 #include <components/debug/debugging.hpp>
 #include <components/misc/rng.hpp>
+#include <components/platform/platform.hpp>
+
+#include "mwgui/debugwindow.hpp"
 
 #include "engine.hpp"
+#include "options.hpp"
+
+#include <boost/program_options/variables_map.hpp>
 
 /*
     Start of tes3mp addition
@@ -19,12 +24,11 @@
 */
 
 #if defined(_WIN32)
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
+#include <components/windows.hpp>
 // makes __argc and __argv available on windows
 #include <cstdlib>
+
+extern "C" __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 0x00000001;
 #endif
 
 #if (defined(__APPLE__) || defined(__linux) || defined(__unix) || defined(__posix))
@@ -47,6 +51,24 @@
 
 using namespace Fallback;
 
+namespace
+{
+    /*
+        Start of tes3mp change (major)
+
+        Instead of logging information in openmw.log, use a more descriptive filename
+        that includes a timestamp
+    */
+    const std::string& getApplicationName()
+    {
+        static const std::string applicationName = "/tes3mp-client-" + TimedLog::getFilenameTimestamp();
+        return applicationName;
+    }
+    /*
+        End of tes3mp change (major)
+    */
+}
+
 /**
  * \brief Parses application command line and calls \ref Cfg::ConfigurationManager
  * to parse configuration files.
@@ -62,97 +84,7 @@ bool parseOptions (int argc, char** argv, OMW::Engine& engine, Files::Configurat
     namespace bpo = boost::program_options;
     typedef std::vector<std::string> StringsVector;
 
-    bpo::options_description desc("Syntax: openmw <options>\nAllowed options");
-
-    desc.add_options()
-        ("help", "print help message")
-        ("version", "print version information and quit")
-
-        ("replace", bpo::value<Files::EscapeStringVector>()->default_value(Files::EscapeStringVector(), "")
-            ->multitoken()->composing(), "settings where the values from the current source should replace those from lower-priority sources instead of being appended")
-
-        ("data", bpo::value<Files::EscapePathContainer>()->default_value(Files::EscapePathContainer(), "data")
-            ->multitoken()->composing(), "set data directories (later directories have higher priority)")
-
-        ("data-local", bpo::value<Files::EscapePath>()->default_value(Files::EscapePath(), ""),
-            "set local data directory (highest priority)")
-
-        ("fallback-archive", bpo::value<Files::EscapeStringVector>()->default_value(Files::EscapeStringVector(), "fallback-archive")
-            ->multitoken()->composing(), "set fallback BSA archives (later archives have higher priority)")
-
-        ("resources", bpo::value<Files::EscapePath>()->default_value(Files::EscapePath(), "resources"),
-            "set resources directory")
-
-        ("start", bpo::value<Files::EscapeHashString>()->default_value(""),
-            "set initial cell")
-
-        ("content", bpo::value<Files::EscapeStringVector>()->default_value(Files::EscapeStringVector(), "")
-            ->multitoken()->composing(), "content file(s): esm/esp, or omwgame/omwaddon")
-
-        ("groundcover", bpo::value<Files::EscapeStringVector>()->default_value(Files::EscapeStringVector(), "")
-            ->multitoken()->composing(), "groundcover content file(s): esm/esp, or omwgame/omwaddon")
-
-        ("no-sound", bpo::value<bool>()->implicit_value(true)
-            ->default_value(false), "disable all sounds")
-
-        ("script-all", bpo::value<bool>()->implicit_value(true)
-            ->default_value(false), "compile all scripts (excluding dialogue scripts) at startup")
-
-        ("script-all-dialogue", bpo::value<bool>()->implicit_value(true)
-            ->default_value(false), "compile all dialogue scripts at startup")
-
-        ("script-console", bpo::value<bool>()->implicit_value(true)
-            ->default_value(false), "enable console-only script functionality")
-
-        ("script-run", bpo::value<Files::EscapeHashString>()->default_value(""),
-            "select a file containing a list of console commands that is executed on startup")
-
-        ("script-warn", bpo::value<int>()->implicit_value (1)
-            ->default_value (1),
-            "handling of warnings when compiling scripts\n"
-            "\t0 - ignore warning\n"
-            "\t1 - show warning but consider script as correctly compiled anyway\n"
-            "\t2 - treat warnings as errors")
-
-        ("script-blacklist", bpo::value<Files::EscapeStringVector>()->default_value(Files::EscapeStringVector(), "")
-            ->multitoken()->composing(), "ignore the specified script (if the use of the blacklist is enabled)")
-
-        ("script-blacklist-use", bpo::value<bool>()->implicit_value(true)
-            ->default_value(true), "enable script blacklisting")
-
-        ("load-savegame", bpo::value<Files::EscapePath>()->default_value(Files::EscapePath(), ""),
-            "load a save game file on game startup (specify an absolute filename or a filename relative to the current working directory)")
-
-        ("skip-menu", bpo::value<bool>()->implicit_value(true)
-            ->default_value(false), "skip main menu on game startup")
-
-        ("new-game", bpo::value<bool>()->implicit_value(true)
-            ->default_value(false), "run new game sequence (ignored if skip-menu=0)")
-
-        ("fs-strict", bpo::value<bool>()->implicit_value(true)
-            ->default_value(false), "strict file system handling (no case folding)")
-
-        ("encoding", bpo::value<Files::EscapeHashString>()->
-            default_value("win1252"),
-            "Character encoding used in OpenMW game messages:\n"
-            "\n\twin1250 - Central and Eastern European such as Polish, Czech, Slovak, Hungarian, Slovene, Bosnian, Croatian, Serbian (Latin script), Romanian and Albanian languages\n"
-            "\n\twin1251 - Cyrillic alphabet such as Russian, Bulgarian, Serbian Cyrillic and other languages\n"
-            "\n\twin1252 - Western European (Latin) alphabet, used by default")
-
-        ("fallback", bpo::value<FallbackMap>()->default_value(FallbackMap(), "")
-            ->multitoken()->composing(), "fallback values")
-
-        ("no-grab", bpo::value<bool>()->implicit_value(true)->default_value(false), "Don't grab mouse cursor")
-
-        ("export-fonts", bpo::value<bool>()->implicit_value(true)
-            ->default_value(false), "Export Morrowind .fnt fonts to PNG image and XML file in current directory")
-
-        ("activate-dist", bpo::value <int> ()->default_value (-1), "activation distance override")
-
-        ("random-seed", bpo::value <unsigned int> ()
-            ->default_value(Misc::Rng::generateDefaultSeed()),
-            "seed value for random number generator")
-    ;
+    bpo::options_description desc = OpenMW::makeOptionsDescription();
 
     /*
         Start of tes3mp addition
@@ -164,13 +96,9 @@ bool parseOptions (int argc, char** argv, OMW::Engine& engine, Files::Configurat
         End of tes3mp addition
     */
 
-    bpo::parsed_options valid_opts = bpo::command_line_parser(argc, argv)
-        .options(desc).allow_unregistered().run();
-
     bpo::variables_map variables;
 
-    // Runtime options override settings from all configs
-    bpo::store(valid_opts, variables);
+    Files::parseArgs(argc, argv, variables, desc);
     bpo::notify(variables);
 
     if (variables.count ("help"))
@@ -183,16 +111,18 @@ bool parseOptions (int argc, char** argv, OMW::Engine& engine, Files::Configurat
     {
         cfgMgr.readConfiguration(variables, desc, true);
 
-        Version::Version v = Version::getOpenmwVersion(variables["resources"].as<Files::EscapePath>().mPath.string());
+        Version::Version v = Version::getOpenmwVersion(variables["resources"].as<Files::MaybeQuotedPath>().string());
         getRawStdout() << v.describe() << std::endl;
         return false;
     }
 
-    bpo::variables_map composingVariables = cfgMgr.separateComposingVariables(variables, desc);
     cfgMgr.readConfiguration(variables, desc);
-    cfgMgr.mergeComposingVariables(variables, composingVariables, desc);
+    Settings::Manager::load(cfgMgr);
 
-    Version::Version v = Version::getOpenmwVersion(variables["resources"].as<Files::EscapePath>().mPath.string());
+    setupLogging(cfgMgr.getLogPath().string(), getApplicationName());
+    MWGui::DebugWindow::startLogRecording();
+
+    Version::Version v = Version::getOpenmwVersion(variables["resources"].as<Files::MaybeQuotedPath>().string());
 
     /*
         Start of tes3mp addition
@@ -217,32 +147,32 @@ bool parseOptions (int argc, char** argv, OMW::Engine& engine, Files::Configurat
     engine.setGrabMouse(!variables["no-grab"].as<bool>());
 
     // Font encoding settings
-    std::string encoding(variables["encoding"].as<Files::EscapeHashString>().toStdString());
+    std::string encoding(variables["encoding"].as<std::string>());
     Log(Debug::Info) << ToUTF8::encodingUsingMessage(encoding);
     engine.setEncoding(ToUTF8::calculateEncoding(encoding));
 
     // directory settings
     engine.enableFSStrict(variables["fs-strict"].as<bool>());
 
-    Files::PathContainer dataDirs(Files::EscapePath::toPathContainer(variables["data"].as<Files::EscapePathContainer>()));
+    Files::PathContainer dataDirs(asPathContainer(variables["data"].as<Files::MaybeQuotedPathContainer>()));
 
-    Files::PathContainer::value_type local(variables["data-local"].as<Files::EscapePath>().mPath);
+    Files::PathContainer::value_type local(variables["data-local"].as<Files::MaybeQuotedPathContainer::value_type>());
     if (!local.empty())
         dataDirs.push_back(local);
 
-    cfgMgr.processPaths(dataDirs);
+    cfgMgr.filterOutNonExistingPaths(dataDirs);
 
-    engine.setResourceDir(variables["resources"].as<Files::EscapePath>().mPath);
+    engine.setResourceDir(variables["resources"].as<Files::MaybeQuotedPath>());
     engine.setDataDirs(dataDirs);
 
     // fallback archives
-    StringsVector archives = variables["fallback-archive"].as<Files::EscapeStringVector>().toStdStringVector();
+    StringsVector archives = variables["fallback-archive"].as<StringsVector>();
     for (StringsVector::const_iterator it = archives.begin(); it != archives.end(); ++it)
     {
         engine.addArchive(*it);
     }
 
-    StringsVector content = variables["content"].as<Files::EscapeStringVector>().toStdStringVector();
+    StringsVector content = variables["content"].as<StringsVector>();
     if (content.empty())
     {
         Log(Debug::Error) << "No content file given (esm/esp, nor omwgame/omwaddon). Aborting...";
@@ -263,14 +193,20 @@ bool parseOptions (int argc, char** argv, OMW::Engine& engine, Files::Configurat
         engine.addContentFile(file);
     }
 
-    StringsVector groundcover = variables["groundcover"].as<Files::EscapeStringVector>().toStdStringVector();
+    StringsVector groundcover = variables["groundcover"].as<StringsVector>();
     for (auto& file : groundcover)
     {
         engine.addGroundcoverFile(file);
     }
 
+    if (variables.count("lua-scripts"))
+    {
+        Log(Debug::Warning) << "Lua scripts have been specified via the old lua-scripts option and will not be loaded. "
+                               "Please update them to a version which uses the new omwscripts format.";
+    }
+
     // startup-settings
-    engine.setCell(variables["start"].as<Files::EscapeHashString>().toStdString());
+    engine.setCell(variables["start"].as<std::string>());
     engine.setSkipMenu (variables["skip-menu"].as<bool>(), variables["new-game"].as<bool>());
     if (!variables["skip-menu"].as<bool>() && variables["new-game"].as<bool>())
         Log(Debug::Warning) << "Warning: new-game used without skip-menu -> ignoring it";
@@ -279,7 +215,7 @@ bool parseOptions (int argc, char** argv, OMW::Engine& engine, Files::Configurat
     engine.setCompileAll(variables["script-all"].as<bool>());
     engine.setCompileAllDialogue(variables["script-all-dialogue"].as<bool>());
     engine.setScriptConsoleMode (variables["script-console"].as<bool>());
-    
+
     /*
         Start of tes3mp change (major)
 
@@ -287,11 +223,11 @@ bool parseOptions (int argc, char** argv, OMW::Engine& engine, Files::Configurat
         disable them
     */
     /*
-    engine.setStartupScript (variables["script-run"].as<Files::EscapeHashString>().toStdString());
+    engine.setStartupScript (variables["script-run"].as<std::string>());
     engine.setWarningsMode (variables["script-warn"].as<int>());
-    engine.setScriptBlacklist (variables["script-blacklist"].as<Files::EscapeStringVector>().toStdStringVector());
+    engine.setScriptBlacklist (variables["script-blacklist"].as<StringsVector>());
     engine.setScriptBlacklistUse (variables["script-blacklist-use"].as<bool>());
-    engine.setSaveGameFile (variables["load-savegame"].as<Files::EscapePath>().mPath.string());
+    engine.setSaveGameFile (variables["load-savegame"].as<Files::MaybeQuotedPath>().string());
     */
     /*
         End of tes3mp change (major)
@@ -301,7 +237,6 @@ bool parseOptions (int argc, char** argv, OMW::Engine& engine, Files::Configurat
     Fallback::Map::init(variables["fallback"].as<FallbackMap>().mMap);
     engine.setSoundUsage(!variables["no-sound"].as<bool>());
     engine.setActivationDistanceOverride (variables["activate-dist"].as<int>());
-    engine.enableFontExport(variables["export-fonts"].as<bool>());
     engine.setRandomSeed(variables["random-seed"].as<unsigned int>());
 
     /*
@@ -367,6 +302,8 @@ namespace
 
 int runApplication(int argc, char *argv[])
 {
+    Platform::init();
+
 #ifdef __APPLE__
     boost::filesystem::path binary_path = boost::filesystem::system_complete(boost::filesystem::path(argv[0]));
     boost::filesystem::current_path(binary_path.parent_path());
@@ -375,8 +312,7 @@ int runApplication(int argc, char *argv[])
 
     osg::setNotifyHandler(new OSGLogHandler());
     Files::ConfigurationManager cfgMgr;
-    std::unique_ptr<OMW::Engine> engine;
-    engine.reset(new OMW::Engine(cfgMgr));
+    std::unique_ptr<OMW::Engine> engine = std::make_unique<OMW::Engine>(cfgMgr);
 
     if (parseOptions(argc, argv, *engine, cfgMgr))
     {
@@ -408,7 +344,7 @@ int main(int argc, char**argv)
         Instead of logging information in openmw.log, use a more descriptive filename
         that includes a timestamp
     */
-    return wrapApplication(&runApplication, argc, argv, "/tes3mp-client-" + TimedLog::getFilenameTimestamp());
+    return wrapApplication(&runApplication, argc, argv, getApplicationName());
     /*
         End of tes3mp change (major)
     */

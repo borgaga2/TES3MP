@@ -1,10 +1,14 @@
 #include "spellcreationdialog.hpp"
 
+#include <MyGUI_Button.h>
 #include <MyGUI_ImageBox.h>
 #include <MyGUI_Gui.h>
+#include <MyGUI_ScrollBar.h>
 
 #include <components/esm/records.hpp>
 #include <components/widgets/list.hpp>
+#include <components/misc/resourcehelpers.hpp>
+#include <components/resource/resourcesystem.hpp>
 
 /*
     Start of tes3mp addition
@@ -25,12 +29,12 @@
 
 #include "../mwworld/containerstore.hpp"
 #include "../mwworld/class.hpp"
+#include "../mwworld/store.hpp"
 #include "../mwworld/esmstore.hpp"
 
-#include "../mwmechanics/spells.hpp"
-#include "../mwmechanics/creaturestats.hpp"
-#include "../mwmechanics/actorutil.hpp"
 #include "../mwmechanics/spellutil.hpp"
+#include "../mwmechanics/actorutil.hpp"
+#include "../mwmechanics/creaturestats.hpp"
 
 #include "tooltips.hpp"
 #include "class.hpp"
@@ -127,10 +131,6 @@ namespace MWGui
     {
         bool allowSelf = (effect->mData.mFlags & ESM::MagicEffect::CastSelf) != 0;
         bool allowTouch = (effect->mData.mFlags & ESM::MagicEffect::CastTouch) && !mConstantEffect;
-        bool allowTarget = (effect->mData.mFlags & ESM::MagicEffect::CastTarget) && !mConstantEffect;
-
-        if (!allowSelf && !allowTouch && !allowTarget)
-            return; // TODO: Show an error message popup?
 
         setMagicEffect(effect);
         mEditing = false;
@@ -202,7 +202,8 @@ namespace MWGui
 
     void EditEffectDialog::setMagicEffect (const ESM::MagicEffect *effect)
     {
-        mEffectImage->setImageTexture(MWBase::Environment::get().getWindowManager()->correctIconPath(effect->mIcon));
+        mEffectImage->setImageTexture(Misc::ResourceHelpers::correctIconPath(effect->mIcon,
+            MWBase::Environment::get().getResourceSystem()->getVFS()));
 
         mEffectName->setCaptionWithReplacing("#{"+ESM::MagicEffect::effectIdToString  (effect->mIndex)+"}");
 
@@ -498,7 +499,7 @@ namespace MWGui
 
         for (const ESM::ENAMstruct& effect : mEffects)
         {
-            y += std::max(1.f, MWMechanics::calcEffectCost(effect));
+            y += std::max(1.f, MWMechanics::calcEffectCost(effect, nullptr, MWMechanics::EffectCostMethod::PlayerSpell));
 
             if (effect.mRange == ESM::RT_Target)
                 y *= 1.5;
@@ -562,10 +563,8 @@ namespace MWGui
 
         std::vector<short> knownEffects;
 
-        for (MWMechanics::Spells::TIterator it = spells.begin(); it != spells.end(); ++it)
+        for (const ESM::Spell* spell : spells)
         {
-            const ESM::Spell* spell = it->first;
-
             // only normal spells count
             if (spell->mData.mType != ESM::Spell::ST_Spell)
                 continue;
@@ -666,6 +665,13 @@ namespace MWGui
 
         const ESM::MagicEffect* effect =
             MWBase::Environment::get().getWorld()->getStore().get<ESM::MagicEffect>().find(mSelectedKnownEffectId);
+
+        bool allowSelf = (effect->mData.mFlags & ESM::MagicEffect::CastSelf) != 0;
+        bool allowTouch = (effect->mData.mFlags & ESM::MagicEffect::CastTouch) && !mConstantEffect;
+        bool allowTarget = (effect->mData.mFlags & ESM::MagicEffect::CastTarget) && !mConstantEffect;
+
+        if (!allowSelf && !allowTouch && !allowTarget)
+            return; // TODO: Show an error message popup?
 
         if (effect->mData.mFlags & ESM::MagicEffect::TargetSkill)
         {

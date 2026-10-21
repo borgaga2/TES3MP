@@ -22,6 +22,8 @@
 
 #include <components/settings/settings.hpp>
 #include <components/openmw-mp/TimedLog.hpp>
+#include <components/misc/resourcehelpers.hpp>
+#include <components/resource/resourcesystem.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/windowmanager.hpp"
@@ -30,7 +32,6 @@
 #include "../mwworld/class.hpp"
 #include "../mwworld/esmstore.hpp"
 
-#include "../mwmechanics/creaturestats.hpp"
 #include "../mwmechanics/npcstats.hpp"
 #include "../mwmechanics/actorutil.hpp"
 
@@ -93,10 +94,11 @@ namespace MWGui
         }
 
         void removeItem (const ItemStack& item, size_t count) override { throw std::runtime_error("removeItem not implemented"); }
-        ModelIndex getIndex (ItemStack item) override { throw std::runtime_error("getIndex not implemented"); }
+        ModelIndex getIndex (const ItemStack &item) override { throw std::runtime_error("getIndex not implemented"); }
         void update() override {}
         size_t getItemCount() override { return 0; }
         ItemStack getItem (ModelIndex index) override { throw std::runtime_error("getItem not implemented"); }
+        bool usesContainer(const MWWorld::Ptr&) override { return false; }
 
     private:
         // Where to drop the item
@@ -120,7 +122,7 @@ namespace MWGui
         , mMinimap(nullptr)
         , mCrosshair(nullptr)
         , mCellNameBox(nullptr)
-        , mDrowningFrame(nullptr)
+        , mDrowningBar(nullptr)
         , mDrowningFlash(nullptr)
         , mHealthManaStaminaBaseLeft(0)
         , mWeapBoxBaseLeft(0)
@@ -139,8 +141,6 @@ namespace MWGui
         , mIsDrowning(false)
         , mDrowningFlashTheta(0.f)
     {
-        mMainWidget->setSize(MyGUI::RenderManager::getInstance().getViewSize());
-
         // Energy bars
         getWidget(mHealthFrame, "HealthFrame");
         getWidget(mHealth, "Health");
@@ -158,6 +158,7 @@ namespace MWGui
         fatigueFrame->eventMouseButtonClick += MyGUI::newDelegate(this, &HUD::onHMSClicked);
 
         //Drowning bar
+        getWidget(mDrowningBar, "DrowningBar");
         getWidget(mDrowningFrame, "DrowningFrame");
         getWidget(mDrowning, "Drowning");
         getWidget(mDrowningFlash, "Flash");
@@ -263,7 +264,7 @@ namespace MWGui
 
     void HUD::setDrowningBarVisible(bool visible)
     {
-        mDrowningFrame->setVisible(visible);
+        mDrowningBar->setVisible(visible);
     }
 
     void HUD::onWorldClicked(MyGUI::Widget* _sender)
@@ -426,9 +427,6 @@ namespace MWGui
             mWeaponSpellBox->setPosition(mWeaponSpellBox->getPosition() + MyGUI::IntPoint(0,20));
         }
 
-        if (mIsDrowning)
-            mDrowningFlashTheta += dt * osg::PI*2;
-
         mSpellIcons->updateWidgets(mEffectBox, true);
 
         if (mEnemyActorId != -1 && mEnemyHealth->getVisible())
@@ -436,8 +434,13 @@ namespace MWGui
             updateEnemyHealthBar();
         }
 
+        if (mDrowningBar->getVisible())
+            mDrowningBar->setPosition(mMainWidget->getWidth()/2 - mDrowningFrame->getWidth()/2, mMainWidget->getTop());
+
         if (mIsDrowning)
         {
+            mDrowningFlashTheta += dt * osg::PI*2;
+
             float intensity = (cos(mDrowningFlashTheta) + 2.0f) / 3.0f;
 
             mDrowningFlash->setAlpha(intensity);
@@ -471,7 +474,7 @@ namespace MWGui
         std::string icon = effect->mIcon;
         int slashPos = icon.rfind('\\');
         icon.insert(slashPos+1, "b_");
-        icon = MWBase::Environment::get().getWindowManager()->correctIconPath(icon);
+        icon = Misc::ResourceHelpers::correctIconPath(icon, MWBase::Environment::get().getResourceSystem()->getVFS());
 
         mSpellImage->setSpellIcon(icon);
     }
@@ -664,11 +667,11 @@ namespace MWGui
         mEnemyHealth->setProgressRange(100);
         // Health is usually cast to int before displaying. Actors die whenever they are < 1 health.
         // Therefore any value < 1 should show as an empty health bar. We do the same in statswindow :)
-        mEnemyHealth->setProgressPosition(static_cast<size_t>(stats.getHealth().getCurrent() / stats.getHealth().getModified() * 100));
+        mEnemyHealth->setProgressPosition(static_cast<size_t>(stats.getHealth().getRatio() * 100));
 
         static const float fNPCHealthBarFade = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("fNPCHealthBarFade")->mValue.getFloat();
         if (fNPCHealthBarFade > 0.f)
-            mEnemyHealth->setAlpha(std::max(0.f, std::min(1.f, mEnemyHealthTimer/fNPCHealthBarFade)));
+            mEnemyHealth->setAlpha(std::clamp(mEnemyHealthTimer / fNPCHealthBarFade, 0.f, 1.f));
 
     }
 

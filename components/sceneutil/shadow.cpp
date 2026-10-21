@@ -1,9 +1,13 @@
 #include "shadow.hpp"
 
 #include <osgShadow/ShadowedScene>
+#include <osgShadow/ShadowSettings>
 
 #include <components/misc/stringops.hpp>
 #include <components/settings/settings.hpp>
+#include <components/stereo/stereomanager.hpp>
+
+#include "mwshadowtechnique.hpp"
 
 namespace SceneUtil
 {
@@ -24,8 +28,7 @@ namespace SceneUtil
         mShadowSettings->setLightNum(0);
         mShadowSettings->setReceivesShadowTraversalMask(~0u);
 
-        int numberOfShadowMapsPerLight = Settings::Manager::getInt("number of shadow maps", "Shadows");
-        numberOfShadowMapsPerLight = std::max(1, std::min(numberOfShadowMapsPerLight, 8));
+        const int numberOfShadowMapsPerLight = std::clamp(Settings::Manager::getInt("number of shadow maps", "Shadows"), 1, 8);
 
         mShadowSettings->setNumShadowMapsPerLight(numberOfShadowMapsPerLight);
         mShadowSettings->setBaseShadowTextureUnit(8 - numberOfShadowMapsPerLight);
@@ -33,7 +36,7 @@ namespace SceneUtil
         const float maximumShadowMapDistance = Settings::Manager::getFloat("maximum shadow map distance", "Shadows");
         if (maximumShadowMapDistance > 0)
         {
-            const float shadowFadeStart = std::min(std::max(0.f, Settings::Manager::getFloat("shadow fade start", "Shadows")), 1.f);
+            const float shadowFadeStart = std::clamp(Settings::Manager::getFloat("shadow fade start", "Shadows"), 0.f, 1.f);
             mShadowSettings->setMaximumShadowMapDistance(maximumShadowMapDistance);
             mShadowTechnique->setShadowFadeStart(maximumShadowMapDistance * shadowFadeStart);
         }
@@ -75,8 +78,7 @@ namespace SceneUtil
         if (!Settings::Manager::getBool("enable shadows", "Shadows"))
             return;
 
-        int numberOfShadowMapsPerLight = Settings::Manager::getInt("number of shadow maps", "Shadows");
-        numberOfShadowMapsPerLight = std::max(1, std::min(numberOfShadowMapsPerLight, 8));
+        const int numberOfShadowMapsPerLight = std::clamp(Settings::Manager::getInt("number of shadow maps", "Shadows"), 1, 8);
 
         int baseShadowTextureUnit = 8 - numberOfShadowMapsPerLight;
         
@@ -84,6 +86,8 @@ namespace SceneUtil
         fakeShadowMapImage->allocateImage(1, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT);
         *(float*)fakeShadowMapImage->data() = std::numeric_limits<float>::infinity();
         osg::ref_ptr<osg::Texture> fakeShadowMapTexture = new osg::Texture2D(fakeShadowMapImage);
+        fakeShadowMapTexture->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_EDGE);
+        fakeShadowMapTexture->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);
         fakeShadowMapTexture->setShadowComparison(true);
         fakeShadowMapTexture->setShadowCompareFunc(osg::Texture::ShadowCompareFunc::ALWAYS);
         for (int i = baseShadowTextureUnit; i < baseShadowTextureUnit + numberOfShadowMapsPerLight; ++i)
@@ -94,12 +98,13 @@ namespace SceneUtil
         }
     }
 
-    ShadowManager::ShadowManager(osg::ref_ptr<osg::Group> sceneRoot, osg::ref_ptr<osg::Group> rootNode, unsigned int outdoorShadowCastingMask, unsigned int indoorShadowCastingMask, Shader::ShaderManager &shaderManager) : mShadowedScene(new osgShadow::ShadowedScene),
+    ShadowManager::ShadowManager(osg::ref_ptr<osg::Group> sceneRoot, osg::ref_ptr<osg::Group> rootNode, unsigned int outdoorShadowCastingMask, unsigned int indoorShadowCastingMask, unsigned int worldMask, Shader::ShaderManager &shaderManager) : mShadowedScene(new osgShadow::ShadowedScene),
         mShadowTechnique(new MWShadowTechnique),
         mOutdoorShadowCastingMask(outdoorShadowCastingMask),
         mIndoorShadowCastingMask(indoorShadowCastingMask)
     {
         mShadowedScene->setShadowTechnique(mShadowTechnique);
+        Stereo::Manager::instance().setShadowTechnique(mShadowTechnique);
 
         mShadowedScene->addChild(sceneRoot);
         rootNode->addChild(mShadowedScene);
@@ -109,8 +114,14 @@ namespace SceneUtil
         setupShadowSettings();
 
         mShadowTechnique->setupCastingShader(shaderManager);
+        mShadowTechnique->setWorldMask(worldMask);
 
         enableOutdoorMode();
+    }
+
+    ShadowManager::~ShadowManager()
+    {
+        Stereo::Manager::instance().setShadowTechnique(nullptr);
     }
 
     Shader::ShaderManager::DefineMap ShadowManager::getShadowDefines()

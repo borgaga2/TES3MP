@@ -38,6 +38,7 @@ enum RecordType
   RC_NiNode,
   RC_NiSwitchNode,
   RC_NiLODNode,
+  RC_NiFltAnimationNode,
   RC_NiBillboardNode,
   RC_AvoidNode,
   RC_NiCollisionSwitch,
@@ -72,6 +73,7 @@ enum RecordType
   RC_NiBSAnimationNode,
   RC_NiLight,
   RC_NiTextureEffect,
+  RC_NiExtraData,
   RC_NiVertWeightsExtraData,
   RC_NiTextKeyExtraData,
   RC_NiStringExtraData,
@@ -124,14 +126,32 @@ enum RecordType
   RC_BSLODTriShape,
   RC_BSShaderProperty,
   RC_BSShaderPPLightingProperty,
-  RC_BSShaderNoLightingProperty
+  RC_BSShaderNoLightingProperty,
+  RC_BSFurnitureMarker,
+  RC_NiCollisionObject,
+  RC_bhkCollisionObject,
+  RC_BSDismemberSkinInstance,
+  RC_NiControllerManager,
+  RC_bhkMoppBvTreeShape,
+  RC_bhkNiTriStripsShape,
+  RC_bhkPackedNiTriStripsShape,
+  RC_hkPackedNiTriStripsData,
+  RC_bhkConvexVerticesShape,
+  RC_bhkBoxShape,
+  RC_bhkListShape,
+  RC_bhkRigidBody,
+  RC_bhkRigidBodyT,
+  RC_BSLightingShaderProperty,
+  RC_NiClusterAccumulator,
+  RC_NiAlphaAccumulator,
+  RC_NiSortAdjustNode
 };
 
 /// Base class for all records
 struct Record
 {
     // Record type and type name
-    int recType{RC_MISSING};
+    RecordType recType{RC_MISSING};
     std::string recName;
     unsigned int recIndex{~0u};
 

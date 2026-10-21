@@ -1,14 +1,10 @@
 #include "terraintexturemode.hpp"
 
 #include <string>
-#include <sstream>
 
 #include <QWidget>
 #include <QIcon>
-#include <QEvent>
 #include <QDropEvent>
-#include <QDragEnterEvent>
-#include <QDrag>
 
 #include <osg/Group>
 
@@ -65,11 +61,11 @@ void CSVRender::TerrainTextureMode::activate(CSVWidget::SceneToolbar* toolbar)
 
     if (!mTerrainTextureSelection)
     {
-        mTerrainTextureSelection.reset(new TerrainSelection(mParentNode, &getWorldspaceWidget(), TerrainSelectionType::Texture));
+        mTerrainTextureSelection = std::make_shared<TerrainSelection>(mParentNode, &getWorldspaceWidget(), TerrainSelectionType::Texture);
     }
 
     if (!mBrushDraw)
-        mBrushDraw.reset(new BrushDraw(mParentNode, true));
+        mBrushDraw = std::make_unique<BrushDraw>(mParentNode, true);
 
     EditMode::activate(toolbar);
     toolbar->addTool (mTextureBrushScenetool);
@@ -129,7 +125,8 @@ void CSVRender::TerrainTextureMode::primarySelectPressed(const WorldspaceHitResu
 {
     if(hit.hit && hit.tag == nullptr)
     {
-        selectTerrainTextures(CSMWorld::CellCoordinates::toTextureCoords(hit.worldPos), 0, false);
+        selectTerrainTextures(CSMWorld::CellCoordinates::toTextureCoords(hit.worldPos), 0);
+        mTerrainTextureSelection->clearTemporarySelection();
     }
 }
 
@@ -137,7 +134,8 @@ void CSVRender::TerrainTextureMode::secondarySelectPressed(const WorldspaceHitRe
 {
     if(hit.hit && hit.tag == nullptr)
     {
-        selectTerrainTextures(CSMWorld::CellCoordinates::toTextureCoords(hit.worldPos), 1, false);
+        selectTerrainTextures(CSMWorld::CellCoordinates::toTextureCoords(hit.worldPos), 1);
+        mTerrainTextureSelection->clearTemporarySelection();
     }
 }
 
@@ -188,8 +186,8 @@ bool CSVRender::TerrainTextureMode::primarySelectStartDrag (const QPoint& pos)
         mDragMode = InteractionType_None;
         return false;
     }
-    selectTerrainTextures(CSMWorld::CellCoordinates::toTextureCoords(hit.worldPos), 0, true);
-    return false;
+    selectTerrainTextures(CSMWorld::CellCoordinates::toTextureCoords(hit.worldPos), 0);
+    return true;
 }
 
 bool CSVRender::TerrainTextureMode::secondarySelectStartDrag (const QPoint& pos)
@@ -201,8 +199,8 @@ bool CSVRender::TerrainTextureMode::secondarySelectStartDrag (const QPoint& pos)
         mDragMode = InteractionType_None;
         return false;
     }
-    selectTerrainTextures(CSMWorld::CellCoordinates::toTextureCoords(hit.worldPos), 1, true);
-    return false;
+    selectTerrainTextures(CSMWorld::CellCoordinates::toTextureCoords(hit.worldPos), 1);
+    return true;
 }
 
 void CSVRender::TerrainTextureMode::drag (const QPoint& pos, int diffX, int diffY, double speedFactor)
@@ -225,13 +223,13 @@ void CSVRender::TerrainTextureMode::drag (const QPoint& pos, int diffX, int diff
     if (mDragMode == InteractionType_PrimarySelect)
     {
         WorldspaceHitResult hit = getWorldspaceWidget().mousePick (pos, getWorldspaceWidget().getInteractionMask());
-        if (hit.hit && hit.tag == nullptr) selectTerrainTextures(CSMWorld::CellCoordinates::toTextureCoords(hit.worldPos), 0, true);
+        if (hit.hit && hit.tag == nullptr) selectTerrainTextures(CSMWorld::CellCoordinates::toTextureCoords(hit.worldPos), 0);
     }
 
     if (mDragMode == InteractionType_SecondarySelect)
     {
         WorldspaceHitResult hit = getWorldspaceWidget().mousePick (pos, getWorldspaceWidget().getInteractionMask());
-        if (hit.hit && hit.tag == nullptr) selectTerrainTextures(CSMWorld::CellCoordinates::toTextureCoords(hit.worldPos), 1, true);
+        if (hit.hit && hit.tag == nullptr) selectTerrainTextures(CSMWorld::CellCoordinates::toTextureCoords(hit.worldPos), 1);
     }
 }
 
@@ -251,6 +249,8 @@ void CSVRender::TerrainTextureMode::dragCompleted(const QPoint& pos)
              mIsEditing = false;
         }
     }
+
+    mTerrainTextureSelection->clearTemporarySelection();
 }
 
 void CSVRender::TerrainTextureMode::dragAborted()
@@ -496,7 +496,7 @@ bool CSVRender::TerrainTextureMode::isInCellSelection(int globalSelectionX, int 
 }
 
 
-void CSVRender::TerrainTextureMode::selectTerrainTextures(const std::pair<int, int>& texCoords, unsigned char selectMode, bool dragOperation)
+void CSVRender::TerrainTextureMode::selectTerrainTextures(const std::pair<int, int>& texCoords, unsigned char selectMode)
 {
     int r = mBrushSize / 2;
     std::vector<std::pair<int, int>> selections;
@@ -559,8 +559,21 @@ void CSVRender::TerrainTextureMode::selectTerrainTextures(const std::pair<int, i
         }
     }
 
-    if(selectMode == 0) mTerrainTextureSelection->onlySelect(selections);
-    if(selectMode == 1) mTerrainTextureSelection->toggleSelect(selections, dragOperation);
+    std::string selectAction;
+
+    if (selectMode == 0)
+        selectAction = CSMPrefs::get()["3D Scene Editing"]["primary-select-action"].toString();
+    else
+        selectAction = CSMPrefs::get()["3D Scene Editing"]["secondary-select-action"].toString();
+
+    if (selectAction == "Select only")
+        mTerrainTextureSelection->onlySelect(selections);
+    else if (selectAction == "Add to selection")
+        mTerrainTextureSelection->addSelect(selections);
+    else if (selectAction == "Remove from selection")
+        mTerrainTextureSelection->removeSelect(selections);
+    else if (selectAction == "Invert selection")
+        mTerrainTextureSelection->toggleSelect(selections);
 }
 
 void CSVRender::TerrainTextureMode::pushEditToCommand(CSMWorld::LandTexturesColumn::DataType& newLandGrid, CSMDoc::Document& document,
@@ -645,8 +658,7 @@ bool CSVRender::TerrainTextureMode::allowLandTextureEditing(std::string cellId)
 
         if (mode=="Create cell and land, then edit")
         {
-            std::unique_ptr<CSMWorld::CreateCommand> createCommand (
-                new CSMWorld::CreateCommand (cellTable, cellId));
+            auto createCommand = std::make_unique<CSMWorld::CreateCommand>(cellTable, cellId);
             int parentIndex = cellTable.findColumnIndex (CSMWorld::Columns::ColumnId_Cell);
             int index = cellTable.findNestedColumnIndex (parentIndex, CSMWorld::Columns::ColumnId_Interior);
             createCommand->addNestedValue (parentIndex, index, false);

@@ -2,10 +2,10 @@
 #define OPENMW_MWWORLD_ESMSTORE_H
 
 #include <memory>
-#include <sstream>
 #include <stdexcept>
 #include <unordered_map>
 
+#include <components/esm/luascripts.hpp>
 #include <components/esm/records.hpp>
 #include "store.hpp"
 
@@ -17,6 +17,11 @@ namespace Loading
 namespace MWMechanics
 {
     class SpellList;
+}
+
+namespace ESM
+{
+    class ReadersCache;
 }
 
 namespace MWWorld
@@ -74,8 +79,9 @@ namespace MWWorld
 
         // Lookup of all IDs. Makes looking up references faster. Just
         // maps the id name to the record type.
-        std::map<std::string, int> mIds;
-        std::map<std::string, int> mStaticIds;
+        using IDMap = std::unordered_map<std::string, int, Misc::StringUtils::CiHash, Misc::StringUtils::CiEqual>;
+        IDMap mIds;
+        std::unordered_map<std::string, int> mStaticIds;
 
         std::unordered_map<std::string, int> mRefCount;
 
@@ -83,13 +89,25 @@ namespace MWWorld
 
         unsigned int mDynamicCount;
 
-        mutable std::map<std::string, std::weak_ptr<MWMechanics::SpellList> > mSpellListCache;
+        mutable std::unordered_map<std::string, std::weak_ptr<MWMechanics::SpellList>, Misc::StringUtils::CiHash, Misc::StringUtils::CiEqual> mSpellListCache;
 
         /// Validate entries in store after setup
         void validate();
 
-        void countRecords();
+        void countAllCellRefs(ESM::ReadersCache& readers);
+
+        template<class T>
+        void removeMissingObjects(Store<T>& store);
+
+        using LuaContent = std::variant<
+            ESM::LuaScriptsCfg,  // data from an omwaddon
+            std::string>;  // path to an omwscripts file
+        std::vector<LuaContent> mLuaContent;
+
     public:
+        void addOMWScripts(std::string filePath) { mLuaContent.push_back(std::move(filePath)); }
+        ESM::LuaScriptsCfg getLuaScriptsCfg() const;
+
         /// \todo replace with SharedIterator<StoreBase>
         typedef std::map<int, StoreBase *>::const_iterator iterator;
 
@@ -102,10 +120,9 @@ namespace MWWorld
         }
 
         /// Look up the given ID in 'all'. Returns 0 if not found.
-        /// \note id must be in lower case.
         int find(const std::string &id) const
         {
-            std::map<std::string, int>::const_iterator it = mIds.find(id);
+            IDMap::const_iterator it = mIds.find(id);
             if (it == mIds.end()) {
                 return 0;
             }
@@ -113,7 +130,7 @@ namespace MWWorld
         }
         int findStatic(const std::string &id) const
         {
-            std::map<std::string, int>::const_iterator it = mStaticIds.find(id);
+            IDMap::const_iterator it = mStaticIds.find(id);
             if (it == mStaticIds.end()) {
                 return 0;
             }
@@ -183,7 +200,7 @@ namespace MWWorld
         /// Validate entries in store after loading a save
         void validateDynamic();
 
-        void load(ESM::ESMReader &esm, Loading::Listener* listener);
+        void load(ESM::ESMReader &esm, Loading::Listener* listener, ESM::Dialogue*& dialogue);
 
         template <class T>
         const Store<T> &get() const {
@@ -253,7 +270,8 @@ namespace MWWorld
 
         // This method must be called once, after loading all master/plugin files. This can only be done
         //  from the outside, so it must be public.
-        void setUp(bool validateRecords = false);
+        void setUp();
+        void validateRecords(ESM::ReadersCache& readers);
 
         int countSavedGameRecords() const;
 

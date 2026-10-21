@@ -5,7 +5,6 @@
 
 #include <QComboBox>
 #include <QApplication>
-#include <QUndoStack>
 
 #include "../../model/world/commands.hpp"
 
@@ -78,6 +77,8 @@ QWidget *CSVWorld::EnumDelegate::createEditor(QWidget *parent, const QStyleOptio
     for (std::vector<std::pair<int, QString> >::const_iterator iter (mValues.begin());
          iter!=mValues.end(); ++iter)
          comboBox->addItem (iter->second);
+    
+    comboBox->setMaxVisibleItems(20);
 
     return comboBox;
 }

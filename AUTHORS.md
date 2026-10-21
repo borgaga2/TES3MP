@@ -27,8 +27,11 @@ Programmers
     Alexander Olofsson (Ananace)
     Alex Rice
     Alex S (docwest)
+    Alexey Yaryshev (skeevert)
     Allofich
+    Andreas Stöckel
     Andrei Kortunov (akortunov)
+    Andrew Appuhamy (andrew-app)
     AnyOldName3
     Ardekantur
     Armin Preiml
@@ -42,6 +45,7 @@ Programmers
     Austin Salgat (Salgat)
     Ben Shealy (bentsherman)
     Berulacks
+    Bo Svensson
     Britt Mathis (galdor557)
     Capostrophic
     Carl Maxwell
@@ -67,16 +71,19 @@ Programmers
     David Teviotdale (dteviot)
     Diggory Hardy
     Dmitry Marakasov (AMDmi3)
+    Duncan Frost (duncans_pumpkin)
     Edmondo Tommasina (edmondo)
     Eduard Cot (trombonecot)
     Eli2
     Emanuel Guével (potatoesmaster)
+    Eris Caffee (eris)
     eroen
     escondida
     Evgeniy Mineev (sandstranger)
     Federico Guerra (FedeWar)
     Fil Krynicki (filkry)
     Finbar Crago (finbar-crago)
+    Florent Teppe (Tetramir)
     Florian Weber (Florianjw)
     Frédéric Chardon (fr3dz10)
     Gaëtan Dezeiraud (Brouilles)
@@ -88,6 +95,7 @@ Programmers
     Haoda Wang (h313)
     hristoast
     Internecine
+    Ivan Beloborodov (myrix)
     Jackerty
     Jacob Essex (Yacoby)
     Jacob Turnbull (Tankinfrank)
@@ -97,6 +105,7 @@ Programmers
     James Stephens (james-h-stephens)
     Jan-Peter Nilsson (peppe)
     Jan Borsodi (am0s)
+    JanuarySnow
     Jason Hooks (jhooks)
     jeaye
     jefetienne
@@ -108,6 +117,7 @@ Programmers
     John Blomberg (fstp)
     Jordan Ayers
     Jordan Milne
+    Josquin Frei
     Josua Grawitter
     Jules Blok (Armada651)
     julianko
@@ -118,6 +128,7 @@ Programmers
     Kurnevsky Evgeny (kurnevsky)
     Lars Söderberg (Lazaroth)
     lazydev
+    Léo Peltier
     Leon Krieg (lkrieg)
     Leon Saunders (emoose)
     logzero
@@ -154,8 +165,10 @@ Programmers
     Nialsy
     Nick Crawford (nighthawk469)
     Nikolay Kasyanov (corristo)
+    Noah Gooder
     nobrakal
     Nolan Poe (nopoe)
+    Nurivan Gomez (Nuri-G)
     Oleg Chkan (mrcheko)
     Paul Cercueil (pcercuei)
     Paul McElroy (Greendogo)
@@ -170,6 +183,7 @@ Programmers
     PlutonicOverkill
     Radu-Marius Popovici (rpopovici)
     Rafael Moura (dhustkoder)
+    Randy Davin (Kindi)
     rdimesio
     rexelion
     riothamus
@@ -207,22 +221,24 @@ Programmers
     tlmullis
     tri4ng1e
     Thoronador
+    Tobias Tribble (zackogenic)
+    Tom Lowe (Vulpen)
     Tom Mason (wheybags)
     Torben Leif Carrington (TorbenC)
     unelsson
     uramer
     viadanna
+    Vidi_Aquam
     Vincent Heuken
     Vladimir Panteleev (CyberShadow)
+    vocollapse
     Wang Ryu (bzzt)
     Will Herrmann (Thunderforge)
-    vocollapse
+    Wolfgang Lieff
     xyzz
     Yohaulticetl
     Yuri Krupenin
     zelurker
-    Noah Gooder
-    Andrew Appuhamy (andrew-app)
 
 Documentation
 -------------
@@ -237,6 +253,7 @@ Documentation
     Joakim Berg (lysol90)
     Ryan Tucker (Ravenwing)
     sir_herrbatka
+    David Nagy (zuzaman)
 
 Packagers
 ---------

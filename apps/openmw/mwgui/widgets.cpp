@@ -1,11 +1,14 @@
 #include "widgets.hpp"
 
-#include <sstream>
 #include <iomanip>
 
+#include <MyGUI_Button.h>
 #include <MyGUI_ProgressBar.h>
 #include <MyGUI_ImageBox.h>
 #include <MyGUI_ControllerManager.h>
+
+#include <components/resource/resourcesystem.hpp>
+#include <components/misc/resourcehelpers.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/world.hpp"
@@ -15,9 +18,7 @@
 
 #include "controllers.hpp"
 
-namespace MWGui
-{
-    namespace Widgets
+namespace MWGui::Widgets
     {
         /* MWSkill */
 
@@ -472,7 +473,7 @@ namespace MWGui
             mTextWidget->setCaptionWithReplacing(spellLine);
             mRequestedWidth = mTextWidget->getTextSize().width + sIconOffset;
 
-            mImageWidget->setImageTexture(MWBase::Environment::get().getWindowManager()->correctIconPath(magicEffect->mIcon));
+            mImageWidget->setImageTexture(Misc::ResourceHelpers::correctIconPath(magicEffect->mIcon, MWBase::Environment::get().getResourceSystem()->getVFS()));
         }
 
         MWSpellEffect::~MWSpellEffect()
@@ -535,4 +536,3 @@ namespace MWGui
             assignWidget(mBarTextWidget, "BarText");
         }
     }
-}

@@ -1,7 +1,9 @@
 #include "controller.hpp"
 
-#include "node.hpp"
+#include "controlled.hpp"
 #include "data.hpp"
+#include "node.hpp"
+#include "recordptr.hpp"
 
 namespace Nif
 {
@@ -38,7 +40,7 @@ namespace Nif
         horizontalDir = nif->getFloat();
         horizontalAngle = nif->getFloat();
         /*normal?*/ nif->getVector3();
-        /*color?*/ nif->getVector4();
+        color = nif->getVector4();
         size = nif->getFloat();
         startTime = nif->getFloat();
         stopTime = nif->getFloat();
@@ -268,6 +270,15 @@ namespace Nif
     {
         Controller::read(nif);
         nif->getUInt(); // Zero
+    }
+
+    void NiControllerManager::read(NIFStream *nif)
+    {
+        Controller::read(nif);
+        mCumulative = nif->getBoolean();
+        unsigned int numSequences = nif->getUInt();
+        nif->skip(4 * numSequences); // Controller sequences
+        nif->skip(4); // Object palette
     }
 
     void NiPoint3Interpolator::read(NIFStream *nif)

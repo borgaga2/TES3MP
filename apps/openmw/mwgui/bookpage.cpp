@@ -8,9 +8,8 @@
 #include "MyGUI_FactoryManager.h"
 
 #include <components/misc/utf8stream.hpp>
+#include <components/sceneutil/depth.hpp>
 
-#include "../mwbase/environment.hpp"
-#include "../mwbase/windowmanager.hpp"
 
 namespace MWGui
 {
@@ -107,7 +106,7 @@ struct TypesetBookImpl : TypesetBook
 
     virtual ~TypesetBookImpl () {}
 
-    Range addContent (BookTypesetter::Utf8Span text)
+    Range addContent (const BookTypesetter::Utf8Span &text)
     {
         Contents::iterator i = mContents.insert (mContents.end (), Content (text.first, text.second));
 
@@ -490,7 +489,8 @@ struct TypesetBookImpl::Typesetter : BookTypesetter
             {
                 add_partial_text();
                 stream.consume ();
-                mLine = nullptr, mRun = nullptr;
+                mLine = nullptr;
+                mRun = nullptr;
                 continue;
             }
 
@@ -550,7 +550,9 @@ struct TypesetBookImpl::Typesetter : BookTypesetter
 
         if (left + space_width + word_width > mPageWidth)
         {
-            mLine = nullptr, mRun = nullptr, left = 0;
+            mLine = nullptr;
+            mRun = nullptr;
+            left = 0;
         }
         else
         {
@@ -746,9 +748,7 @@ namespace
             mVertexColourType = MyGUI::RenderManager::getInstance().getVertexFormat();
         }
 
-        ~GlyphStream ()
-        {
-        }
+        ~GlyphStream () = default;
 
         MyGUI::Vertex* end () const { return mVertices; }
 
@@ -905,12 +905,6 @@ protected:
             return {};
 
         MyGUI::IntPoint pos (left, top);
-#if MYGUI_VERSION < MYGUI_DEFINE_VERSION(3,2,3)
-        // work around inconsistency in MyGUI where the mouse press coordinates aren't
-        // transformed by the current Layer (even though mouse *move* events are).
-        if(!move)
-            pos = mNode->getLayer()->getPosition(left, top);
-#endif
         pos.left -= mCroppedParent->getAbsoluteLeft ();
         pos.top  -= mCroppedParent->getAbsoluteTop  ();
         pos.top += mViewTop;
@@ -1053,7 +1047,7 @@ public:
 
             for (ActiveTextFormats::iterator i = mActiveTextFormats.begin (); i != mActiveTextFormats.end (); ++i)
             {
-                if (mNode != nullptr)
+                if (mNode != nullptr && i->second != nullptr)
                     i->second->destroyDrawItem (mNode);
                 i->second.reset();
             }
@@ -1122,7 +1116,7 @@ public:
 
             if (j == this_->mActiveTextFormats.end ())
             {
-                std::unique_ptr<TextFormat> textFormat(new TextFormat (Font, this_));
+                auto textFormat = std::make_unique<TextFormat>(Font, this_);
 
                 textFormat->mTexture = Font->getTextureFont ();
 
@@ -1219,8 +1213,10 @@ public:
 
         RenderXform renderXform (mCroppedParent, textFormat.mRenderItem->getRenderTarget()->getInfo());
 
+        float z = SceneUtil::AutoDepth::isReversed() ? 1.f : -1.f;
+
         GlyphStream glyphStream(textFormat.mFont, static_cast<float>(mCoord.left), static_cast<float>(mCoord.top - mViewTop),
-                                  -1 /*mNode->getNodeDepth()*/, vertices, renderXform);
+                                  z /*mNode->getNodeDepth()*/, vertices, renderXform);
 
         int visit_top    = (std::max) (mViewTop,    mViewTop + int (renderXform.clipTop   ));
         int visit_bottom = (std::min) (mViewBottom, mViewTop + int (renderXform.clipBottom));

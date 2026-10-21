@@ -40,12 +40,15 @@ class ActorAnimation : public Animation, public MWWorld::ContainerStoreListener
         bool useShieldAnimations() const override;
         bool updateCarriedLeftVisible(const int weaptype) const override;
 
+        void removeFromScene() override;
+
     protected:
-        osg::Group* getBoneByName(const std::string& boneName);
+        osg::Group* getBoneByName(const std::string& boneName) const;
         virtual void updateHolsteredWeapon(bool showHolsteredWeapons);
         virtual void updateHolsteredShield(bool showCarriedLeft);
         virtual void updateQuiver();
-        virtual std::string getShieldMesh(MWWorld::ConstPtr shield) const;
+        std::string getShieldMesh(const MWWorld::ConstPtr& shield, bool female) const;
+        virtual std::string getSheathedShieldMesh(const MWWorld::ConstPtr& shield) const;
         virtual std::string getHolsteredWeaponBoneName(const MWWorld::ConstPtr& weapon);
         virtual PartHolderPtr attachMesh(const std::string& model, const std::string& bonename, bool enchantedGlow, osg::Vec4f* glowColor);
         virtual PartHolderPtr attachMesh(const std::string& model, const std::string& bonename)
@@ -53,6 +56,7 @@ class ActorAnimation : public Animation, public MWWorld::ContainerStoreListener
             osg::Vec4f stubColor = osg::Vec4f(0,0,0,0);
             return attachMesh(model, bonename, false, &stubColor);
         };
+        osg::ref_ptr<osg::Node> attach(const std::string& model, const std::string& bonename, const std::string& bonefilter, bool isLight);
 
         PartHolderPtr mScabbard;
         PartHolderPtr mHolsteredShield;
@@ -61,6 +65,7 @@ class ActorAnimation : public Animation, public MWWorld::ContainerStoreListener
         void addHiddenItemLight(const MWWorld::ConstPtr& item, const ESM::Light* esmLight);
         void removeHiddenItemLight(const MWWorld::ConstPtr& item);
         void resetControllers(osg::Node* node);
+        void removeFromSceneImpl();
 
         typedef std::map<MWWorld::ConstPtr, osg::ref_ptr<SceneUtil::LightSource> > ItemLightMap;
         ItemLightMap mItemLights;

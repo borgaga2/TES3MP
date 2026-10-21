@@ -26,6 +26,7 @@
 
 #include "base.hpp"
 
+#include "nifkey.hpp"
 #include "niftypes.hpp" // Transformation
 
 namespace Nif
@@ -170,6 +171,11 @@ struct NiSkinInstance : public Record
     void post(NIFFile *nif) override;
 };
 
+struct BSDismemberSkinInstance : public NiSkinInstance
+{
+    void read(NIFStream *nif) override;
+};
+
 struct NiSkinData : public Record
 {
     struct VertWeight
@@ -234,6 +240,21 @@ struct NiKeyframeData : public Record
 
     Vector3KeyMapPtr mTranslations;
     FloatKeyMapPtr mScales;
+
+    enum class AxisOrder
+    {
+        Order_XYZ = 0,
+        Order_XZY = 1,
+        Order_YZX = 2,
+        Order_YXZ = 3,
+        Order_ZXY = 4,
+        Order_ZYX = 5,
+        Order_XYX = 6,
+        Order_YZY = 7,
+        Order_ZXZ = 8
+    };
+
+    AxisOrder mAxisOrder{AxisOrder::Order_XYZ};
 
     void read(NIFStream *nif) override;
 };

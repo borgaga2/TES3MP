@@ -1,14 +1,15 @@
 #include <memory>
 
 #include <BulletCollision/CollisionShapes/btSphereShape.h>
-#include <BulletCollision/CollisionDispatch/btCollisionWorld.h>
 
 #include <components/misc/convert.hpp>
 
 #include "../mwworld/class.hpp"
 
+#include "actor.hpp"
 #include "collisiontype.hpp"
 #include "mtphysics.hpp"
+#include "object.hpp"
 #include "projectile.hpp"
 
 namespace MWPhysics
@@ -16,7 +17,7 @@ namespace MWPhysics
 Projectile::Projectile(const MWWorld::Ptr& caster, const osg::Vec3f& position, float radius, PhysicsTaskScheduler* scheduler, PhysicsSystem* physicssystem)
     : mHitWater(false)
     , mActive(true)
-    , mCaster(caster)
+    , mHitTarget(nullptr)
     , mPhysics(physicssystem)
     , mTaskScheduler(scheduler)
 {
@@ -29,13 +30,16 @@ Projectile::Projectile(const MWWorld::Ptr& caster, const osg::Vec3f& position, f
     mCollisionObject->setCollisionShape(mShape.get());
     mCollisionObject->setUserPointer(this);
 
-    setPosition(position);
+    mPosition = position;
+    mPreviousPosition = position;
+    mSimulationPosition = position;
+    setCaster(caster);
 
     const int collisionMask = CollisionType_World | CollisionType_HeightMap |
         CollisionType_Actor | CollisionType_Door | CollisionType_Water | CollisionType_Projectile;
     mTaskScheduler->addCollisionObject(mCollisionObject.get(), CollisionType_Projectile, collisionMask);
 
-    commitPositionChange();
+    updateCollisionObjectPosition();
 }
 
 Projectile::~Projectile()
@@ -45,79 +49,75 @@ Projectile::~Projectile()
     mTaskScheduler->removeCollisionObject(mCollisionObject.get());
 }
 
-void Projectile::commitPositionChange()
+void Projectile::updateCollisionObjectPosition()
 {
     std::scoped_lock lock(mMutex);
-    if (mTransformUpdatePending)
-    {
-        auto& trans = mCollisionObject->getWorldTransform();
-        trans.setOrigin(Misc::Convert::toBullet(mPosition));
-        mCollisionObject->setWorldTransform(trans);
-        mTransformUpdatePending = false;
-    }
+    auto& trans = mCollisionObject->getWorldTransform();
+    trans.setOrigin(Misc::Convert::toBullet(mPosition));
+    mCollisionObject->setWorldTransform(trans);
 }
 
-void Projectile::setPosition(const osg::Vec3f &position)
+void Projectile::hit(const btCollisionObject* target, btVector3 pos, btVector3 normal)
 {
-    std::scoped_lock lock(mMutex);
-    mPosition = position;
-    mTransformUpdatePending = true;
-}
-
-osg::Vec3f Projectile::getPosition() const
-{
-    std::scoped_lock lock(mMutex);
-    return mPosition;
-}
-
-void Projectile::hit(MWWorld::Ptr target, btVector3 pos, btVector3 normal)
-{
-    if (!mActive.load(std::memory_order_acquire))
+    bool active = true;
+    if (!mActive.compare_exchange_strong(active, false, std::memory_order_relaxed) || !active)
         return;
-    std::scoped_lock lock(mMutex);
     mHitTarget = target;
     mHitPosition = pos;
     mHitNormal = normal;
-    mActive.store(false, std::memory_order_release);
+}
+
+MWWorld::Ptr Projectile::getTarget() const
+{
+    assert(!mActive);
+    auto* target = static_cast<PtrHolder*>(mHitTarget->getUserPointer());
+    return target ? target->getPtr() : MWWorld::Ptr();
 }
 
 MWWorld::Ptr Projectile::getCaster() const
 {
-    std::scoped_lock lock(mMutex);
     return mCaster;
 }
 
-void Projectile::setCaster(MWWorld::Ptr caster)
+void Projectile::setCaster(const MWWorld::Ptr& caster)
 {
-    std::scoped_lock lock(mMutex);
     mCaster = caster;
+    mCasterColObj = [this,&caster]() -> const btCollisionObject*
+    {
+        const Actor* actor = mPhysics->getActor(caster);
+        if (actor)
+            return actor->getCollisionObject();
+        const Object* object = mPhysics->getObject(caster);
+        if (object)
+            return object->getCollisionObject();
+        return nullptr;
+    }();
 }
 
 void Projectile::setValidTargets(const std::vector<MWWorld::Ptr>& targets)
 {
     std::scoped_lock lock(mMutex);
-    mValidTargets = targets;
+    mValidTargets.clear();
+    for (const auto& ptr : targets)
+    {
+        const auto* physicActor = mPhysics->getActor(ptr);
+        if (physicActor)
+            mValidTargets.push_back(physicActor->getCollisionObject());
+    }
 }
 
-bool Projectile::isValidTarget(const MWWorld::Ptr& target) const
+bool Projectile::isValidTarget(const btCollisionObject* target) const
 {
+    assert(target);
     std::scoped_lock lock(mMutex);
-    if (mCaster == target)
+    if (mCasterColObj == target)
         return false;
 
-    if (target.isEmpty() || mValidTargets.empty())
+    if (mValidTargets.empty())
         return true;
 
-    bool validTarget = false;
-    for (const auto& targetActor : mValidTargets)
-    {
-        if (targetActor == target)
-        {
-            validTarget = true;
-            break;
-        }
-    }
-    return validTarget;
+    return std::any_of(mValidTargets.begin(), mValidTargets.end(),
+            [target](const btCollisionObject* actor) { return target == actor; });
 }
 
 }

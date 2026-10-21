@@ -20,7 +20,7 @@ namespace osg
 
 namespace Resource
 {
-    class BulletShape;
+    struct BulletShape;
 }
 
 namespace MWPhysics
@@ -36,29 +36,21 @@ namespace MWPhysics
 
         btConvexShape* getConvexShape() const { return mConvexShape; }
 
-        void commitPositionChange();
-
-        void setPosition(const osg::Vec3f& position);
-        osg::Vec3f getPosition() const;
-
-        btCollisionObject* getCollisionObject() const
-        {
-            return mCollisionObject.get();
-        }
+        void updateCollisionObjectPosition();
 
         bool isActive() const
         {
             return mActive.load(std::memory_order_acquire);
         }
 
-        MWWorld::Ptr getTarget() const
-        {
-            assert(!mActive);
-            return mHitTarget;
-        }
+        MWWorld::Ptr getTarget() const;
 
         MWWorld::Ptr getCaster() const;
-        void setCaster(MWWorld::Ptr caster);
+        void setCaster(const MWWorld::Ptr& caster);
+        const btCollisionObject* getCasterCollisionObject() const
+        {
+            return mCasterColObj;
+        }
 
         void setHitWater()
         {
@@ -70,10 +62,10 @@ namespace MWPhysics
             return mHitWater;
         }
 
-        void hit(MWWorld::Ptr target, btVector3 pos, btVector3 normal);
+        void hit(const btCollisionObject* target, btVector3 pos, btVector3 normal);
 
         void setValidTargets(const std::vector<MWWorld::Ptr>& targets);
-        bool isValidTarget(const MWWorld::Ptr& target) const;
+        bool isValidTarget(const btCollisionObject* target) const;
 
         btVector3 getHitPosition() const
         {
@@ -85,17 +77,15 @@ namespace MWPhysics
         std::unique_ptr<btCollisionShape> mShape;
         btConvexShape* mConvexShape;
 
-        std::unique_ptr<btCollisionObject> mCollisionObject;
-        bool mTransformUpdatePending;
         bool mHitWater;
         std::atomic<bool> mActive;
         MWWorld::Ptr mCaster;
-        MWWorld::Ptr mHitTarget;
-        osg::Vec3f mPosition;
+        const btCollisionObject* mCasterColObj;
+        const btCollisionObject* mHitTarget;
         btVector3 mHitPosition;
         btVector3 mHitNormal;
 
-        std::vector<MWWorld::Ptr> mValidTargets;
+        std::vector<const btCollisionObject*> mValidTargets;
 
         mutable std::mutex mMutex;
 

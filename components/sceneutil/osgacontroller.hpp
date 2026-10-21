@@ -3,16 +3,11 @@
 
 #include <osg/Node>
 #include <osg/NodeVisitor>
-#include <osg/StateSet>
 #include <osg/ref_ptr>
-#include <osgAnimation/Animation>
-#include <osgAnimation/AnimationUpdateCallback>
-#include <osgAnimation/Channel>
-#include <osgAnimation/BasicAnimationManager>
-#include <osgAnimation/StackedTransform>
 #include <osgAnimation/UpdateMatrixTransform>
 
 #include <components/sceneutil/controller.hpp>
+#include <components/sceneutil/nodecallback.hpp>
 #include <components/sceneutil/keyframe.hpp>
 #include <components/resource/animation.hpp>
 
@@ -32,19 +27,23 @@ namespace SceneUtil
 
             virtual void link(osgAnimation::UpdateMatrixTransform* umt);
 
-            virtual void handle_stateset(osg::StateSet* stateset);
-
             virtual void setAnimation(Resource::Animation* animation);
 
             virtual void apply(osg::Node& node) override;
-
-            virtual void apply(osg::Geode& node) override;
 
         protected:
             Resource::Animation* mAnimation;
     };
 
-    class OsgAnimationController : public SceneUtil::KeyframeController
+#ifdef _MSC_VER
+#pragma warning( push )
+/*
+ * Warning C4250: 'SceneUtil::OsgAnimationController': inherits 'osg::Callback::osg::Callback::asCallback' via dominance,
+ * there is no way to solved this if an object must inherit from both osg::Object and osg::Callback
+ */
+#pragma warning( disable : 4250 )
+#endif
+    class OsgAnimationController : public SceneUtil::KeyframeController, public SceneUtil::NodeCallback<OsgAnimationController>
     {
     public:
         /// @brief Handles the animation for osgAnimation formats
@@ -54,17 +53,19 @@ namespace SceneUtil
 
         META_Object(SceneUtil, OsgAnimationController)
 
+        osg::Callback* getAsCallback() override { return this; }
+
         /// @brief Handles the location of the instance
         osg::Vec3f getTranslation(float time) const override;
 
         /// @brief Calls animation track update()
-        void update(float time, std::string animationName);
+        void update(float time, const std::string& animationName);
 
         /// @brief Called every frame for osgAnimation
-        void operator() (osg::Node*, osg::NodeVisitor*) override;
+        void operator() (osg::Node*, osg::NodeVisitor*);
 
         /// @brief Sets details of the animations
-        void setEmulatedAnimations(std::vector<EmulatedAnimation> emulatedAnimations);
+        void setEmulatedAnimations(const std::vector<EmulatedAnimation>& emulatedAnimations);
 
         /// @brief Adds an animation track to a model
         void addMergedAnimationTrack(osg::ref_ptr<Resource::Animation> animationTrack);
@@ -75,6 +76,9 @@ namespace SceneUtil
         std::vector<osg::ref_ptr<Resource::Animation>> mMergedAnimationTracks; // Used only by osgAnimation-based formats (e.g. dae)
         std::vector<EmulatedAnimation> mEmulatedAnimations;
     };
+#ifdef _MSC_VER
+#pragma warning( pop )
+#endif
 }
 
 #endif

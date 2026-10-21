@@ -4,6 +4,8 @@
 
 #include <gtest/gtest.h>
 
+#include "../testing_util.hpp"
+
 namespace
 {
     using namespace testing;
@@ -17,11 +19,11 @@ namespace
         template <typename F>
         void withSettingsFile( const std::string& content, F&& f)
         {
-            const auto path = std::string(UnitTest::GetInstance()->current_test_info()->name()) + ".cfg";
+            std::string path = TestingOpenMW::outputFilePath(
+                std::string(UnitTest::GetInstance()->current_test_info()->name()) + ".cfg");
 
             {
-                boost::filesystem::ofstream stream;
-                stream.open(path);
+                boost::filesystem::ofstream stream(path);
                 stream << content;
                 stream.close();
             }

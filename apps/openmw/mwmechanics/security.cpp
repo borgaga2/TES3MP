@@ -68,7 +68,8 @@ namespace MWMechanics
             resultMessage = "#{sLockImpossible}";
         else
         {
-            if (Misc::Rng::roll0to99() <= x)
+            auto& prng = MWBase::Environment::get().getWorld()->getPrng();
+            if (Misc::Rng::roll0to99(prng) <= x)
             {
                 /*
                     Start of tes3mp change (major)
@@ -136,7 +137,8 @@ namespace MWMechanics
             resultMessage = "#{sTrapImpossible}";
         else
         {
-            if (Misc::Rng::roll0to99() <= x)
+            auto& prng = MWBase::Environment::get().getWorld()->getPrng();
+            if (Misc::Rng::roll0to99(prng) <= x)
             {
                 /*
                     Start of tes3mp change (major)

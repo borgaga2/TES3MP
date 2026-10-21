@@ -53,6 +53,7 @@ namespace MWGui
         , mSortModel(nullptr)
         , mModel(nullptr)
         , mSelectedItem(-1)
+        , mTreatNextOpenAsLoot(false)
     {
         getWidget(mDisposeCorpseButton, "DisposeCorpseButton");
         getWidget(mTakeButton, "TakeButton");
@@ -216,13 +217,15 @@ namespace MWGui
             End of tes3mp addition
         */
 
+        bool lootAnyway = mTreatNextOpenAsLoot;
+        mTreatNextOpenAsLoot = false;
         mPtr = container;
 
         bool loot = mPtr.getClass().isActor() && mPtr.getClass().getCreatureStats(mPtr).isDead();
 
         if (mPtr.getClass().hasInventoryStore(mPtr))
         {
-            if (mPtr.getClass().isNpc() && !loot)
+            if (mPtr.getClass().isNpc() && !loot && !lootAnyway)
             {
                 // we are stealing stuff
                 mModel = new PickpocketItemModel(mPtr, new InventoryItemModel(container),
@@ -421,7 +424,7 @@ namespace MWGui
                     }
 
                     // Clean up summoned creatures as well
-                    std::map<ESM::SummonKey, int>& creatureMap = creatureStats.getSummonedCreatureMap();
+                    auto& creatureMap = creatureStats.getSummonedCreatureMap();
                     for (const auto& creature : creatureMap)
                         MWBase::Environment::get().getMechanicsManager()->cleanupSummonedCreature(ptr, creature.second);
                     creatureMap.clear();
@@ -436,8 +439,9 @@ namespace MWGui
                             auto it = std::find_if(summons.begin(), summons.end(), [&] (const auto& entry) { return entry.second == creatureStats.getActorId(); });
                             if(it != summons.end())
                             {
-                                MWMechanics::purgeSummonEffect(summoner, *it);
+                                auto summon = *it;
                                 summons.erase(it);
+                                MWMechanics::purgeSummonEffect(summoner, summon);
                                 break;
                             }
                         }
@@ -513,4 +517,9 @@ namespace MWGui
     /*
         End of tes3mp addition
     */
+    void ContainerWindow::onDeleteCustomData(const MWWorld::Ptr& ptr)
+    {
+        if(mModel && mModel->usesContainer(ptr))
+            MWBase::Environment::get().getWindowManager()->removeGuiMode(GM_Container);
+    }
 }

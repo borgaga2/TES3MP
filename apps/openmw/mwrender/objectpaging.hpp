@@ -3,7 +3,7 @@
 
 #include <components/terrain/quadtreeworld.hpp>
 #include <components/resource/resourcemanager.hpp>
-#include <components/esm/loadcell.hpp>
+#include <components/esm3/loadcell.hpp>
 
 #include <mutex>
 
@@ -47,7 +47,7 @@ namespace MWRender
 
         void reportStats(unsigned int frameNumber, osg::Stats* stats) const override;
 
-        void getPagedRefnums(const osg::Vec4i &activeGrid, std::set<ESM::RefNum> &out);
+        void getPagedRefnums(const osg::Vec4i &activeGrid, std::vector<ESM::RefNum>& out);
 
     private:
         Resource::SceneManager* mSceneManager;
