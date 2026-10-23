@@ -616,9 +616,13 @@ namespace MWMechanics
             return params.mId == id && params.mTimeStamp == timestamp;
         };
 
-        bool found = std::find_if(mSpells.begin(), mSpells.end(), predicate) != mSpells.end();
+        // Network removal can arrive before a newly added spell leaves the pending queue.
+        const auto queueEnd = std::remove_if(mQueue.begin(), mQueue.end(), predicate);
+        const bool removedQueued = queueEnd != mQueue.end();
+        mQueue.erase(queueEnd, mQueue.end());
 
-        if (found)
+        const bool foundActive = std::find_if(mSpells.begin(), mSpells.end(), predicate) != mSpells.end();
+        if (foundActive)
         {
             MWWorld::Ptr ptr = MWBase::Environment::get().getWorld()->searchPtrViaActorId(getActorId());
 
@@ -628,7 +632,7 @@ namespace MWMechanics
                 mSpells.remove_if(predicate);
         }
 
-        return found;
+        return foundActive || removedQueued;
     }
     /*
         End of tes3mp addition
