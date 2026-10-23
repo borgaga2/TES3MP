@@ -4,6 +4,7 @@
 #include <cctype>
 #include <cstdio>
 #include <stdexcept>
+#include <vector>
 #include <string>
 #include <algorithm>
 #include <string_view>
@@ -194,12 +195,13 @@ public:
         auto size = std::snprintf(nullptr, 0, fmt, argument(args) ...);
         if (size < 0)
             throw std::runtime_error("Failed to format string");
-        // Include space for the trailing null character, then remove it.
-        std::string ret(size+1, '\0');
-        std::snprintf(&ret[0], ret.size(), fmt, argument(args) ...);
-        ret.erase(size);
-
-        return ret;
+        // Include space for the terminator and check that both passes agree.
+        const auto length = static_cast<std::size_t>(size);
+        std::vector<char> buffer(length + 1);
+        const int written = std::snprintf(buffer.data(), buffer.size(), fmt, argument(args) ...);
+        if (written != size)
+            throw std::runtime_error("Formatted string size changed");
+        return std::string(buffer.data(), length);
     }
 
     template <typename ... Args>
