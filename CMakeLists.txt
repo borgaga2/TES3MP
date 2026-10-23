@@ -900,7 +900,7 @@ endif()
 
 if (BUILD_OPENMW AND APPLE)
     target_compile_definitions(components PRIVATE GL_SILENCE_DEPRECATION=1)
-    target_compile_definitions(openmw PRIVATE GL_SILENCE_DEPRECATION=1)
+    target_compile_definitions(tes3mp PRIVATE GL_SILENCE_DEPRECATION=1)
 endif()
 
 # Apple bundling
