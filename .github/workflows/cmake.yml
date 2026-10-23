@@ -2,7 +2,7 @@ name: CMake
 
 on:
   pull_request:
-    branches: [ master ]
+    branches: [ openmw-0.51-merge ]
 
 env:
   BUILD_TYPE: RelWithDebInfo
