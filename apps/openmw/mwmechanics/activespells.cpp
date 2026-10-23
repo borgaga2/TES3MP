@@ -122,7 +122,7 @@ namespace MWMechanics
 
     ActiveSpells::ActiveSpellParams::ActiveSpellParams(const ActiveSpellParams& params, const MWWorld::Ptr& actor)
     : mId(params.mId), mDisplayName(params.mDisplayName), mCasterActorId(actor.getClass().getCreatureStats(actor).getActorId())
-    , mSlot(params.mSlot), mType(params.mType), mWorsenings(-1)
+    , mSlot(params.mSlot), mType(params.mType), mWorsenings(-1), mTimeStamp(params.mTimeStamp)
     {}
 
     ESM::ActiveSpells::ActiveSpellParams ActiveSpells::ActiveSpellParams::toEsm() const
