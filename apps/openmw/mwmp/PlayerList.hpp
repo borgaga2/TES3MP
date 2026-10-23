@@ -1,8 +1,8 @@
 #ifndef OPENMW_PLAYERLIST_HPP
 #define OPENMW_PLAYERLIST_HPP
 
-#include <components/esm/custommarkerstate.hpp>
-#include <components/esm/loadnpc.hpp>
+#include <components/esm3/custommarkerstate.hpp>
+#include <components/esm3/loadnpc.hpp>
 #include <components/openmw-mp/Base/BasePlayer.hpp>
 
 #include "../mwmechanics/aisequence.hpp"

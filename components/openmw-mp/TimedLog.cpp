@@ -47,12 +47,17 @@ void TimedLog::SetLevel(int level)
 
 const char* getTime()
 {
-    time_t t = time(0);
-    struct tm *tm = localtime(&t);
-    static char result[20];
-    sprintf(result, "%.4d-%.2d-%.2d %.2d:%.2d:%.2d",
-            1900 + tm->tm_year, tm->tm_mon + 1, tm->tm_mday,
-            tm->tm_hour, tm->tm_min, tm->tm_sec);
+    const time_t t = time(nullptr);
+    struct tm local{};
+    static thread_local char result[32];
+#ifdef _WIN32
+    if (localtime_s(&local, &t) != 0)
+#else
+    if (localtime_r(&t, &local) == nullptr)
+#endif
+        return "unknown time";
+    if (strftime(result, sizeof(result), "%Y-%m-%d %H:%M:%S", &local) == 0)
+        return "unknown time";
     return result;
 }
 

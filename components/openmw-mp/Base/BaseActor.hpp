@@ -1,7 +1,7 @@
 #ifndef OPENMW_BASEACTOR_HPP
 #define OPENMW_BASEACTOR_HPP
 
-#include <components/esm/loadcell.hpp>
+#include <components/esm3/loadcell.hpp>
 
 #include <components/openmw-mp/Base/BaseStructs.hpp>
 

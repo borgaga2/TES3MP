@@ -3,7 +3,7 @@
 #include <iostream>
 
 #include <components/esm/attr.hpp>
-#include <components/esm/loadskil.hpp>
+#include <components/esm3/loadskil.hpp>
 #include <components/misc/stringops.hpp>
 #include <components/openmw-mp/TimedLog.hpp>
 #include <components/openmw-mp/NetworkMessages.hpp>

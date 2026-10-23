@@ -1,4 +1,4 @@
-#include <components/esm/esmwriter.hpp>
+#include <components/esm3/esmwriter.hpp>
 #include <components/openmw-mp/TimedLog.hpp>
 #include <components/openmw-mp/Utils.hpp>
 
