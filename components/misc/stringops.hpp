@@ -2,6 +2,8 @@
 #define MISC_STRINGOPS_H
 
 #include <cctype>
+#include <cstdio>
+#include <stdexcept>
 #include <string>
 #include <algorithm>
 #include <string_view>
@@ -190,9 +192,11 @@ public:
     static std::string format(const char* fmt, Args const & ... args)
     {
         auto size = std::snprintf(nullptr, 0, fmt, argument(args) ...);
-        // Note: sprintf also writes a trailing null character. We should remove it.
+        if (size < 0)
+            throw std::runtime_error("Failed to format string");
+        // Include space for the trailing null character, then remove it.
         std::string ret(size+1, '\0');
-        std::sprintf(&ret[0], fmt, argument(args) ...);
+        std::snprintf(&ret[0], ret.size(), fmt, argument(args) ...);
         ret.erase(size);
 
         return ret;
