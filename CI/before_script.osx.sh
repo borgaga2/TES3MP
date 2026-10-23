@@ -8,6 +8,7 @@ git config --global advice.detachedHead false
 
 DEPENDENCIES_ROOT="/private/tmp/openmw-deps/openmw-deps"
 QT_PATH=$(brew --prefix qt@5)
+ICU_PATH=$(brew --prefix icu4c)
 CCACHE_EXECUTABLE=$(brew --prefix ccache)/bin/ccache
 mkdir build
 cd build
@@ -29,6 +30,8 @@ cmake \
 -D BUILD_BSATOOL=TRUE \
 -D BUILD_ESSIMPORTER=TRUE \
 -D BUILD_NIFTEST=TRUE \
--D ICU_ROOT="/usr/local/opt/icu4c" \
+-D ICU_ROOT="$ICU_PATH" \
+-D ICU_INCLUDE_DIR="$ICU_PATH/include" \
+-D ICU_LIBRARY="$ICU_PATH/lib" \
 -G"Unix Makefiles" \
 ..
