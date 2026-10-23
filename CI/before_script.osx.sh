@@ -13,11 +13,13 @@ CCACHE_EXECUTABLE=$(brew --prefix ccache)/bin/ccache
 mkdir build
 cd build
 
+# Boost 1.78 in this legacy bundle still uses std::unary_function.
+# libc++ documents this compatibility macro for C++17 and later.
 cmake \
 -D CMAKE_PREFIX_PATH="$DEPENDENCIES_ROOT;$QT_PATH;$ICU_PATH" \
 -D CMAKE_C_COMPILER_LAUNCHER="$CCACHE_EXECUTABLE" \
 -D CMAKE_CXX_COMPILER_LAUNCHER="$CCACHE_EXECUTABLE" \
--D CMAKE_CXX_FLAGS="-stdlib=libc++" \
+-D CMAKE_CXX_FLAGS="-stdlib=libc++ -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION" \
 -D CMAKE_C_FLAGS_RELEASE="-g -O0" \
 -D CMAKE_CXX_FLAGS_RELEASE="-g -O0" \
 -D CMAKE_OSX_DEPLOYMENT_TARGET="11" \
