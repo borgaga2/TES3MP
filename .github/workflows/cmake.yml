@@ -74,6 +74,21 @@ jobs:
     - name: Install Building Dependancies
       run: CI/before_install.osx.sh
 
+    - name: Build RakNet networking dependency
+      shell: bash
+      run: |
+        set -euo pipefail
+        git clone https://github.com/facebookarchive/RakNet.git /tmp/tes3mp-raknet
+        git -C /tmp/tes3mp-raknet checkout 1a169895a900c9fc4841c556e16514182b75faf8
+        cmake -S /tmp/tes3mp-raknet -B /tmp/tes3mp-raknet-build \
+          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+          -DRAKNET_ENABLE_SAMPLES=OFF -DRAKNET_ENABLE_DLL=OFF \
+          -DRAKNET_ENABLE_STATIC=ON
+        cmake --build /tmp/tes3mp-raknet-build --target RakNetLibStatic --parallel 3
+        sudo mkdir -p /usr/local/include/raknet /usr/local/lib
+        sudo cp /tmp/tes3mp-raknet/Source/*.h /usr/local/include/raknet/
+        sudo cp "$(find /tmp/tes3mp-raknet-build -name 'libRakNetLibStatic.a' -print -quit)" /usr/local/lib/
+
     - name: Prime ccache
       uses: hendrikmuhs/ccache-action@v1
       with:
