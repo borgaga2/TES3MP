@@ -224,7 +224,7 @@ if (WIN32)
 endif()
 
 find_package(RakNet REQUIRED)
-include_directories(${RakNet_INCLUDES})
+include_directories(SYSTEM ${RakNet_INCLUDES})
 if(MSVC)
   add_compile_options("/utf-8")
 endif()
