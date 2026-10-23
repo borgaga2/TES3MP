@@ -44,7 +44,7 @@ public:
         @param _name Resource name.
         @return Return full path to specified data.
     */
-    const std::string& getDataPath(const std::string& _name) const override;
+    std::string getDataPath(const std::string& _name) const override;
 
 private:
     std::string mResourcePath;
