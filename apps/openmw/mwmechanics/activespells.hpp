@@ -43,6 +43,8 @@ namespace MWMechanics
                     ESM::ActiveSpells::EffectType mType;
                     int mWorsenings;
                     MWWorld::TimeStamp mNextWorsening;
+                    // TES3MP identifies stacked active spells by their originating timestamp.
+                    MWWorld::TimeStamp mTimeStamp;
 
                     ActiveSpellParams(const ESM::ActiveSpells::ActiveSpellParams& params);
 
