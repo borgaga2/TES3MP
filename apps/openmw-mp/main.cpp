@@ -5,7 +5,6 @@
 #include <boost/iostreams/stream_buffer.hpp>
 
 #include <components/files/configurationmanager.hpp>
-#include <components/files/escape.hpp>
 #include <components/settings/settings.hpp>
 #include <components/version/version.hpp>
 
