@@ -10,6 +10,7 @@
 #include <functional>
 #include <memory>
 #include <string_view>
+#include <type_traits>
 
 #include <QVariant>
 
@@ -255,10 +256,10 @@ namespace CSMWorld
         copy->mState = RecordBase::State_ModifiedOnly;
         IdAccessorT().setId(copy->get(), destination);
 
-        if (type == UniversalId::Type_Reference)
+        if constexpr (std::is_same_v<ESXRecordT, CSMWorld::CellRef>)
         {
-            CSMWorld::CellRef* ptr = (CSMWorld::CellRef*) &copy->mModified;
-            ptr->mRefNum.mIndex = 0;
+            if (type == UniversalId::Type_Reference)
+                copy->mModified.mRefNum.mIndex = 0;
         }
 
         int index = getAppendIndex(destination, type);
