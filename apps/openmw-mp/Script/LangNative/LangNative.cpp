@@ -42,8 +42,8 @@ void LangNative::LoadProgram(const char *filename)
         const char *prefix = SystemInterface<const char *>(lib, "prefix").result;
         std::string pf(prefix);
 
-        for (const auto &function : ScriptFunctions::functions)
-            if (!SetScript(lib, std::string(pf + function.name).c_str(), function.func.addr))
+        for (const auto &function : ScriptFunctions::functionAddresses)
+            if (!SetScript(lib, std::string(pf + function.name).c_str(), function.addr))
                 LOG_MESSAGE_SIMPLE(TimedLog::LOG_WARN, "Script function pointer not found: %s", function.name);
     }
     catch (...)

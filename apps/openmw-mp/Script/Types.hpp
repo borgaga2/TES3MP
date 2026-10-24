@@ -96,16 +96,23 @@ struct CallbackIdentity
 };
 
 
+// Keep signature metadata constant-evaluable for Lua's typed dispatch.
 struct ScriptFunctionPointer : public ScriptIdentity
 {
-    void *addr;
-#if (!defined(__clang__) && defined(__GNUC__))
     template<typename R, typename... Types>
-    constexpr ScriptFunctionPointer(Function<R, Types...> addr) : ScriptIdentity(addr), addr((void*)(addr)) {}
-#else
+    constexpr ScriptFunctionPointer(Function<R, Types...> function) : ScriptIdentity(function) {}
+};
+
+// Function-to-object pointer conversion must happen at runtime, not in a
+// constant expression. Native scripts use this platform-supported conversion.
+struct ScriptFunctionAddressData
+{
+    const char* name;
+    void* addr;
+
     template<typename R, typename... Types>
-    constexpr ScriptFunctionPointer(Function<R, Types...> addr) : ScriptIdentity(addr), addr(addr) {}
-#endif
+    ScriptFunctionAddressData(const char* name, Function<R, Types...> function)
+        : name(name), addr(reinterpret_cast<void*>(function)) {}
 };
 
 struct ScriptFunctionData

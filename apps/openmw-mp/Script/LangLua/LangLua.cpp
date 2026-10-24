@@ -75,10 +75,8 @@ struct LuaFunctionDispatcher<0, FunctionIndex> {
     // Dispatch Lua function with the given arguments
     template <typename ReturnType, typename... Args>
     inline static ReturnType Dispatch(lua_State*&&, Args&&... args) noexcept {
-        // Retrieve function data
-        constexpr ScriptFunctionData const& functionData = ScriptFunctions::functions[FunctionIndex];
         // Call the C++ function using reinterpret_cast
-        return reinterpret_cast<FunctionEllipsis<ReturnType>>(functionData.func.addr)(std::forward<Args>(args)...);
+        return reinterpret_cast<FunctionEllipsis<ReturnType>>(ScriptFunctions::functionAddresses[FunctionIndex].addr)(std::forward<Args>(args)...);
     }
 };
 

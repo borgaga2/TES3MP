@@ -70,7 +70,8 @@ jobs:
 #        name: build_artifact.7z
 
   MacOS:
-    runs-on: macos-latest
+    # The legacy dependency archive contains x86_64 libraries.
+    runs-on: macos-15-intel
 
     steps:
     - uses: actions/checkout@v2
