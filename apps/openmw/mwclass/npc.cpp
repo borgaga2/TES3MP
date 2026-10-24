@@ -1,4 +1,4 @@
-﻿#include "npc.hpp"
+#include "npc.hpp"
 
 #include <MyGUI_TextIterator.h>
 
@@ -529,7 +529,7 @@ namespace MWClass
         // preload body parts
         if (race)
         {
-            const std::vector<const ESM::BodyPart*>& parts = MWRender::NpcAnimation::getBodyParts(Misc::StringUtils::lowerCase(race->mId), female, false, false);
+            const std::vector<const ESM::BodyPart*> parts = MWRender::NpcAnimation::getBodyParts(Misc::StringUtils::lowerCase(race->mId), female, false, false);
             for (std::vector<const ESM::BodyPart*>::const_iterator it = parts.begin(); it != parts.end(); ++it)
             {
                 const ESM::BodyPart* part = *it;
@@ -895,11 +895,6 @@ namespace MWClass
             else
             {
                 if (ishealth && agilityTerm <= damage && knockdownTerm <= Misc::Rng::roll0to99(prng))
-                    stats.setKnockedDown(true);
-            }
-            else
-            {
-                if (ishealth && agilityTerm <= damage && knockdownTerm <= Misc::Rng::roll0to99())
                     stats.setKnockedDown(true);
             }
 
