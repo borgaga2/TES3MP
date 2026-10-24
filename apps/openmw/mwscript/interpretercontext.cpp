@@ -372,9 +372,9 @@ namespace MWScript
             it is being set in a script that has been approved for packet sending or the global
             itself has been set to always be synchronized
         */
-        if (sendPackets || mwmp::Main::isValidPacketGlobal(name))
+        if (sendPackets || mwmp::Main::isValidPacketGlobal(std::string(name)))
         {
-            mwmp::Main::get().getNetworking()->getWorldstate()->sendClientGlobal(name, value, mwmp::VARIABLE_TYPE::SHORT);
+            mwmp::Main::get().getNetworking()->getWorldstate()->sendClientGlobal(std::string(name), value, mwmp::VARIABLE_TYPE::SHORT);
         }
         /*
             End of tes3mp addition
@@ -402,9 +402,9 @@ namespace MWScript
             it is being set in a script that has been approved for packet sending or the global
             itself has been set to always be synchronized
         */
-        if (sendPackets || mwmp::Main::isValidPacketGlobal(name))
+        if (sendPackets || mwmp::Main::isValidPacketGlobal(std::string(name)))
         {
-            mwmp::Main::get().getNetworking()->getWorldstate()->sendClientGlobal(name, value, mwmp::VARIABLE_TYPE::LONG);
+            mwmp::Main::get().getNetworking()->getWorldstate()->sendClientGlobal(std::string(name), value, mwmp::VARIABLE_TYPE::LONG);
         }
         /*
             End of tes3mp addition
@@ -437,9 +437,9 @@ namespace MWScript
             its value has changed enough and it is being set in a script that has been approved
             for packet sending or the global itself has been set to always be synchronized
         */
-        if (floor(oldValue) != floor(value) && (sendPackets || mwmp::Main::isValidPacketGlobal(name)))
+        if (floor(oldValue) != floor(value) && (sendPackets || mwmp::Main::isValidPacketGlobal(std::string(name))))
         {
-            mwmp::Main::get().getNetworking()->getWorldstate()->sendClientGlobal(name, value);
+            mwmp::Main::get().getNetworking()->getWorldstate()->sendClientGlobal(std::string(name), value);
         }
         /*
             End of tes3mp addition
@@ -705,7 +705,7 @@ namespace MWScript
             objectList->reset();
             objectList->packetOrigin = ScriptController::getPacketOriginFromContextType(getContextType());
             objectList->originClientScript = getCurrentScriptName();
-            objectList->addScriptMemberShort(id, index, value);
+            objectList->addScriptMemberShort(std::string(id), index, value);
             objectList->sendScriptMemberShort();
         }
         /*

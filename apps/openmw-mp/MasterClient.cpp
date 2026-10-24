@@ -27,7 +27,7 @@ MasterClient::MasterClient(RakNet::RakPeerInterface *peer, std::string queryAddr
 void MasterClient::SetPlayers(unsigned pl)
 {
     mutexData.lock();
-    if (queryData.GetPlayers() != pl)
+    if (static_cast<unsigned>(queryData.GetPlayers()) != pl)
     {
         queryData.SetPlayers(pl);
         updated = true;
@@ -38,7 +38,7 @@ void MasterClient::SetPlayers(unsigned pl)
 void MasterClient::SetMaxPlayers(unsigned pl)
 {
     mutexData.lock();
-    if (queryData.GetMaxPlayers() != pl)
+    if (static_cast<unsigned>(queryData.GetMaxPlayers()) != pl)
     {
         queryData.SetMaxPlayers(pl);
         updated = true;
