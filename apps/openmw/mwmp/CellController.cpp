@@ -1,5 +1,5 @@
 #include <components/detournavigator/navigator.hpp>
-#include <components/esm/cellid.hpp>
+#include <components/esm3/cellid.hpp>
 #include <components/openmw-mp/TimedLog.hpp>
 #include <components/openmw-mp/Utils.hpp>
 

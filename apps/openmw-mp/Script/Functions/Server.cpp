@@ -1,6 +1,7 @@
 #include "Server.hpp"
 
 #include <components/misc/stringops.hpp>
+#include <string_view>
 #include <components/openmw-mp/NetworkMessages.hpp>
 #include <components/openmw-mp/TimedLog.hpp>
 #include <components/openmw-mp/Version.hpp>
@@ -61,7 +62,7 @@ const char *ServerFunctions::GetCaseInsensitiveFilename(const char *folderPath, 
 
     for (boost::filesystem::directory_iterator itr(folderPath); itr != end_itr; ++itr)
     {
-        if (Misc::StringUtils::ciEqual(itr->path().filename().string(), filename))
+        if (Misc::StringUtils::ciEqual(itr->path().filename().string(), std::string_view(filename)))
         {
             tempFilename = itr->path().filename().string();
             return tempFilename.c_str();

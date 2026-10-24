@@ -124,7 +124,7 @@ void LocalActor::updateAnimFlags(bool forceUpdate)
 
     isFlying = world->isFlying(ptr);
 
-    MWMechanics::DrawState_ currentDrawState = ptr.getClass().getCreatureStats(ptr).getDrawState();
+    MWMechanics::DrawState currentDrawState = ptr.getClass().getCreatureStats(ptr).getDrawState();
 
     if (wasRunning != isRunning || wasSneaking != isSneaking ||
         wasForceJumping != isForceJumping || wasForceMoveJumping != isForceMoveJumping ||
@@ -151,7 +151,7 @@ void LocalActor::updateAnimFlags(bool forceUpdate)
 
 #undef __SETFLAG
 
-        drawState = currentDrawState;
+        drawState = static_cast<char>(currentDrawState);
 
         mwmp::Main::get().getNetworking()->getActorList()->addAnimFlagsActor(*this);
     }

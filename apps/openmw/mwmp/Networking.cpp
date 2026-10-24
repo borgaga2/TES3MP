@@ -7,7 +7,7 @@
 #include <components/openmw-mp/Version.hpp>
 #include <components/openmw-mp/Packets/PacketPreInit.hpp>
 
-#include <components/esm/cellid.hpp>
+#include <components/esm3/cellid.hpp>
 #include <components/files/configurationmanager.hpp>
 
 #include "../mwbase/environment.hpp"

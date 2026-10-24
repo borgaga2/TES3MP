@@ -118,39 +118,15 @@ public:
 
 
     static constexpr ScriptFunctionData functions[]{
-            {"CreateTimer",         ScriptFunctions::CreateTimer},
-            {"CreateTimerEx",       ScriptFunctions::CreateTimerEx},
-            {"MakePublic",          ScriptFunctions::MakePublic},
-            {"CallPublic",          ScriptFunctions::CallPublic},
-
-            {"StartTimer",          ScriptFunctions::StartTimer},
-            {"StopTimer",           ScriptFunctions::StopTimer},
-            {"RestartTimer",        ScriptFunctions::RestartTimer},
-            {"FreeTimer",           ScriptFunctions::FreeTimer},
-            {"IsTimerElapsed",      ScriptFunctions::IsTimerElapsed},
-
-            ACTORAPI,
-            BOOKAPI,
-            CELLAPI,
-            CHARCLASSAPI,
-            CHATAPI,
-            DIALOGUEAPI,
-            FACTIONAPI,
-            GUIAPI,
-            ITEMAPI,
-            MECHANICSAPI,
-            MISCELLANEOUSAPI,
-            POSITIONAPI,
-            QUESTAPI,
-            RECORDSDYNAMICAPI,
-            SHAPESHIFTAPI,
-            SERVERAPI,
-            SETTINGSAPI,
-            SPELLAPI,
-            STATAPI,
-            OBJECTAPI,
-            WORLDSTATEAPI
+#include "ScriptFunctionEntries.inc"
     };
+
+    inline static const ScriptFunctionAddressData functionAddresses[]{
+#include "ScriptFunctionEntries.inc"
+    };
+
+    static_assert(sizeof(functions) / sizeof(functions[0])
+        == sizeof(functionAddresses) / sizeof(functionAddresses[0]));
 
     static constexpr ScriptCallbackData callbacks[]{
             {"OnServerInit",             Callback<>()},

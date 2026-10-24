@@ -3,9 +3,9 @@
 
 #include <string>
 
-#include <components/esm/activespells.hpp>
-#include <components/esm/loadcell.hpp>
-#include <components/esm/statstate.hpp>
+#include <components/esm3/activespells.hpp>
+#include <components/esm3/loadcell.hpp>
+#include <components/esm3/statstate.hpp>
 
 #include <RakNetTypes.h>
 

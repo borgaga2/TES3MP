@@ -2,6 +2,7 @@
 #define OPENMW_MWWORLD_ESMSTORE_H
 
 #include <memory>
+#include <variant>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -105,7 +106,7 @@ namespace MWWorld
         std::vector<LuaContent> mLuaContent;
 
     public:
-        void addOMWScripts(std::string filePath) { mLuaContent.push_back(std::move(filePath)); }
+        void addOMWScripts(std::string filePath) { mLuaContent.emplace_back(std::in_place_type<std::string>, std::move(filePath)); }
         ESM::LuaScriptsCfg getLuaScriptsCfg() const;
 
         /// \todo replace with SharedIterator<StoreBase>

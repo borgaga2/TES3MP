@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1.0)
+cmake_minimum_required(VERSION 3.5)
 
 # for link time optimization, remove if cmake version is >= 3.9
 if(POLICY CMP0069) # LTO
@@ -224,7 +224,7 @@ if (WIN32)
 endif()
 
 find_package(RakNet REQUIRED)
-include_directories(${RakNet_INCLUDES})
+include_directories(SYSTEM ${RakNet_INCLUDES})
 if(MSVC)
   add_compile_options("/utf-8")
 endif()
@@ -900,7 +900,7 @@ endif()
 
 if (BUILD_OPENMW AND APPLE)
     target_compile_definitions(components PRIVATE GL_SILENCE_DEPRECATION=1)
-    target_compile_definitions(openmw PRIVATE GL_SILENCE_DEPRECATION=1)
+    target_compile_definitions(tes3mp PRIVATE GL_SILENCE_DEPRECATION=1)
 endif()
 
 # Apple bundling

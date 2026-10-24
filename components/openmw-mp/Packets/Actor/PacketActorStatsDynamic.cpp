@@ -1,6 +1,6 @@
 #include <components/openmw-mp/NetworkMessages.hpp>
 #include <components/openmw-mp/TimedLog.hpp>
-#include <components/esm/creaturestats.hpp>
+#include <components/esm3/creaturestats.hpp>
 #include "PacketActorStatsDynamic.hpp"
 
 using namespace mwmp;

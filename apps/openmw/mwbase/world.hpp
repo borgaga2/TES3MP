@@ -18,7 +18,7 @@
 
     Include additional headers for multiplayer purposes
 */
-#include <components/esm/variant.hpp>
+#include <components/esm3/variant.hpp>
 /*
     End of tes3mp addition
 */

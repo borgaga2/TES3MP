@@ -132,6 +132,7 @@ MASTER_PACKETS QueryClient::GetAnswer(MASTER_PACKETS waitingPacket)
             {
                 case ID_CONNECTION_LOST:
                     qDebug() << "ID_CONNECTION_LOST";
+                    [[fallthrough]];
                 case ID_DISCONNECTION_NOTIFICATION:
                     qDebug() << "Disconnected";
                     update = false;
@@ -174,7 +175,7 @@ MASTER_PACKETS QueryClient::GetAnswer(MASTER_PACKETS waitingPacket)
 ConnectionState QueryClient::Connect()
 {
 
-    ConnectionAttemptResult car = peer->Connect(masterAddr.ToString(false), masterAddr.GetPort(), TES3MP_MASTERSERVER_PASSW,
+    peer->Connect(masterAddr.ToString(false), masterAddr.GetPort(), TES3MP_MASTERSERVER_PASSW,
                                                 strlen(TES3MP_MASTERSERVER_PASSW), nullptr, 0, 5, 500);
 
     while (true)

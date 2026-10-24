@@ -57,19 +57,15 @@ const MyGUI::VectorString &DataManager::getDataListNames(const std::string &patt
     throw std::runtime_error("DataManager::getDataListNames is not implemented - VFS is used");
 }
 
-const std::string &DataManager::getDataPath(const std::string &name) const
+DataManager::DataPathResult DataManager::getDataPath(const std::string &name) const
 {
-    static std::string result;
-    result.clear();
-
     if (name.empty())
         return mResourcePath;
 
-    if (!isDataExist(name))
-        return result;
-
-    result = mResourcePath + "/" + name;
-    return result;
+    mDataPath.clear();
+    if (isDataExist(name))
+        mDataPath = mResourcePath + "/" + name;
+    return mDataPath;
 }
 
 }

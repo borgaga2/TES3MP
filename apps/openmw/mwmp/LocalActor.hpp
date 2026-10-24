@@ -51,7 +51,7 @@ namespace mwmp
         bool wasJumping;
         bool wasFlying;
 
-        MWMechanics::DrawState_ lastDrawState;
+        MWMechanics::DrawState lastDrawState;
 
         MWMechanics::DynamicStat<float> oldHealth;
         MWMechanics::DynamicStat<float> oldMagicka;
