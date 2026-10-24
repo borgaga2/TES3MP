@@ -329,7 +329,7 @@ namespace MWInput
 
             Don't allow the main menu to be toggled while TES3MP listboxes are open
         */
-        if (MWBase::Environment::get().getWindowManager()->getMode() == mwmp::GUIController::GM_TES3MP_ListBox)
+        if (MWBase::Environment::get().getWindowManager()->getMode() == static_cast<MWGui::GuiMode>(mwmp::GUIController::GM_TES3MP_ListBox))
         {
             return;
         }

@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include <boost/filesystem/fstream.hpp>
+#include <boost/program_options.hpp>
 #include <boost/iostreams/concepts.hpp>
 #include <boost/iostreams/stream_buffer.hpp>
 
@@ -127,7 +128,7 @@ boost::program_options::variables_map launchOptions(int argc, char *argv[], File
     bpo::options_description desc;
 
     desc.add_options()
-            ("resources", bpo::value<Files::EscapeHashString>()->default_value("resources"), "set resources directory")
+            ("resources", bpo::value<Files::MaybeQuotedPath>()->default_value(Files::MaybeQuotedPath(), "resources"), "set resources directory")
             ("no-logs", bpo::value<bool>()->implicit_value(true)->default_value(false),
              "Do not write logs. Useful for daemonizing.");
 
@@ -152,7 +153,7 @@ int main(int argc, char *argv[])
 
     auto variables = launchOptions(argc, argv, cfgMgr);
 
-    auto version = Version::getOpenmwVersion(variables["resources"].as<Files::EscapeHashString>().toStdString());
+    auto version = Version::getOpenmwVersion(variables["resources"].as<Files::MaybeQuotedPath>().string());
 
     int logLevel = mgr.getInt("logLevel", "General");
     if (logLevel < TimedLog::LOG_VERBOSE || logLevel > TimedLog::LOG_FATAL)
@@ -242,9 +243,9 @@ int main(int argc, char *argv[])
 
         switch (peer->Startup((unsigned) players, &sd, 1))
         {
-            case RakNet::CRABNET_STARTED:
+            case RakNet::RAKNET_STARTED:
                 break;
-            case RakNet::CRABNET_ALREADY_STARTED:
+            case RakNet::RAKNET_ALREADY_STARTED:
                 throw std::runtime_error("Already started");
             case RakNet::INVALID_SOCKET_DESCRIPTORS:
                 throw std::runtime_error("Incorrect port or address");
