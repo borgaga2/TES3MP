@@ -1,5 +1,5 @@
 
-set (CMAKE_CXX_STANDARD 14)
+# Inherit the engine C++ standard for shared settings and file headers.
 
 set(BROWSER_UI
         ${CMAKE_SOURCE_DIR}/files/tes3mp/ui/Main.ui
