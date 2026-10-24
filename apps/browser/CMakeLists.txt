@@ -82,7 +82,7 @@ endif (WIN32)
 target_link_libraries(tes3mp-browser
         ${SDL2_LIBRARY_ONLY}
         ${RakNet_LIBRARY}
-        components
+        components_qt
         )
 
 if (DESIRED_QT_VERSION MATCHES 4)
