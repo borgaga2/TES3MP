@@ -1,6 +1,7 @@
 #include "Stats.hpp"
 
 #include <iostream>
+#include <string_view>
 
 #include <components/esm/attr.hpp>
 #include <components/esm3/loadskil.hpp>
@@ -25,7 +26,7 @@ int StatsFunctions::GetAttributeId(const char *name) noexcept
 {
     for (int x = 0; x < ESM::Attribute::Length; x++)
     {
-        if (Misc::StringUtils::ciEqual(name, ESM::Attribute::sAttributeNames[x]))
+        if (Misc::StringUtils::ciEqual(std::string_view(name), ESM::Attribute::sAttributeNames[x]))
         {
             return x;
         }
@@ -38,7 +39,7 @@ int StatsFunctions::GetSkillId(const char *name) noexcept
 {
     for (int x = 0; x < ESM::Skill::Length; x++)
     {
-        if (Misc::StringUtils::ciEqual(name, ESM::Skill::sSkillNames[x]))
+        if (Misc::StringUtils::ciEqual(std::string_view(name), ESM::Skill::sSkillNames[x]))
         {
             return x;
         }

@@ -1496,7 +1496,8 @@ bool CharacterController::updateWeaponState(CharacterState idle)
                 }
                 // Play the spellcasting animation/VFX if the spellcasting was successful or failed due to insufficient magicka.
                 // Used up powers are exempt from this from some reason.
-                else if (!spellid.empty() && spellCastResult != MWWorld::SpellCastState::PowerAlreadyUsed)
+                else if (!spellid.empty() && spellCastResult != MWWorld::SpellCastState::PowerAlreadyUsed
+                    && spellCastResult != MWWorld::SpellCastState::InvalidSpell)
                 {
                     world->breakInvisibility(mPtr);
 
