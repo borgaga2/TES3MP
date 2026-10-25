@@ -24,14 +24,14 @@ float scaleDamage(float damage, const MWWorld::Ptr& attacker, const MWWorld::Ptr
     const MWWorld::Ptr& player = MWMechanics::getPlayer();
 
     // [-500, 500]
-    const int difficultySetting = std::clamp(Settings::Manager::getInt("difficulty", "Game"), -500, 500);
+    const int difficultySetting = mwmp::Main::get().getLocalPlayer()->difficulty;
 
     /*
         Start of tes3mp change (major)
 
         Use difficulty setting received from server instead of basing it on client settings
     */
-    difficultySetting = mwmp::Main::get().getLocalPlayer()->difficulty;
+
     /*
         End of tes3mp change (major)
     */
