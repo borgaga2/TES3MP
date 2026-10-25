@@ -108,10 +108,10 @@ void DedicatedPlayer::update(float dt)
     ptrCreatureStats->getAiSequence().stopCombat();
 
     ptrCreatureStats->setAlarmed(false);
-    ptrCreatureStats->setAiSetting(MWMechanics::CreatureStats::AI_Alarm, 0);
-    ptrCreatureStats->setAiSetting(MWMechanics::CreatureStats::AI_Fight, 0);
-    ptrCreatureStats->setAiSetting(MWMechanics::CreatureStats::AI_Flee, 0);
-    ptrCreatureStats->setAiSetting(MWMechanics::CreatureStats::AI_Hello, 0);
+    ptrCreatureStats->setAiSetting(MWMechanics::AiSetting::Alarm, 0);
+    ptrCreatureStats->setAiSetting(MWMechanics::AiSetting::Fight, 0);
+    ptrCreatureStats->setAiSetting(MWMechanics::AiSetting::Flee, 0);
+    ptrCreatureStats->setAiSetting(MWMechanics::AiSetting::Hello, 0);
 }
 
 void DedicatedPlayer::move(float dt)

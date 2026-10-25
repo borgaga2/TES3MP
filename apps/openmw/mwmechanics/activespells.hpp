@@ -67,6 +67,8 @@ namespace MWMechanics
 
                     ESM::ActiveSpells::EffectType getType() const { return mType; }
 
+                    const MWWorld::TimeStamp& getTimeStamp() const { return mTimeStamp; }
+
                     int getCasterActorId() const { return mCasterActorId; }
 
                     int getWorsenings() const { return mWorsenings; }

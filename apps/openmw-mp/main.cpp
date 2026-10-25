@@ -121,22 +121,32 @@ private:
     std::ostream &out2;
 };
 
-boost::program_options::variables_map launchOptions(int argc, char *argv[], Files::ConfigurationManager cfgMgr)
+boost::program_options::variables_map launchOptions(int argc, char *argv[], Files::ConfigurationManager& cfgMgr)
 {
     namespace bpo = boost::program_options;
     bpo::variables_map variables;
-    bpo::options_description desc;
+    bpo::options_description desc("TES3MP server options");
+    Files::ConfigurationManager::addCommonOptions(desc);
+    Files::MaybeQuotedPath defaultResources;
+    defaultResources /= "resources";
 
     desc.add_options()
-            ("resources", bpo::value<Files::MaybeQuotedPath>()->default_value(Files::MaybeQuotedPath(), "resources"), "set resources directory")
+            ("help,h", "show available options")
+            ("version", "show server and engine version")
+            ("resources", bpo::value<Files::MaybeQuotedPath>()->default_value(defaultResources, "resources"), "set resources directory")
             ("no-logs", bpo::value<bool>()->implicit_value(true)->default_value(false),
              "Do not write logs. Useful for daemonizing.");
-
-    cfgMgr.readConfiguration(variables, desc, true);
 
     bpo::parsed_options valid_opts = bpo::command_line_parser(argc, argv).options(desc).allow_unregistered().run();
 
     bpo::store(valid_opts, variables);
+    bpo::notify(variables);
+    if (variables.count("help"))
+    {
+        std::cout << desc << std::endl;
+        return variables;
+    }
+    cfgMgr.readConfiguration(variables, desc, true);
     bpo::notify(variables);
 
     return variables;
@@ -149,11 +159,20 @@ int main(int argc, char *argv[])
 
     breakpad(boost::filesystem::path(cfgMgr.getLogPath()).string());
 
-    loadSettings(mgr);
-
     auto variables = launchOptions(argc, argv, cfgMgr);
+    if (variables.count("help"))
+        return 0;
 
     auto version = Version::getOpenmwVersion(variables["resources"].as<Files::MaybeQuotedPath>().string());
+
+    if (variables.count("version"))
+    {
+        std::cout << Utils::getVersionInfo("TES3MP dedicated server", TES3MP_VERSION,
+            version.mCommitHash, TES3MP_PROTO_VERSION) << '\n' << version.describe() << std::endl;
+        return 0;
+    }
+
+    loadSettings(mgr);
 
     int logLevel = mgr.getInt("logLevel", "General");
     if (logLevel < TimedLog::LOG_VERBOSE || logLevel > TimedLog::LOG_FATAL)

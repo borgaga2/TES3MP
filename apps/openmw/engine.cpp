@@ -474,7 +474,6 @@ bool OMW::Engine::frame(float frametime)
 
             if (mStateManager->getState() == MWBase::StateManager::State_Running)
             {
-                MWWorld::Ptr player = mWorld->getPlayerPtr();
                 /*
                     Start of tes3mp change (major)
 
@@ -612,7 +611,8 @@ OMW::Engine::~Engine()
 
         Free up memory allocated by multiplayer's Main class
     */
-    mwmp::Main::destroy();
+    if (mwmp::Main::isInitialized())
+        mwmp::Main::destroy();
     /*
         End of tes3mp addition
     */

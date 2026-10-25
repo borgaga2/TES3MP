@@ -810,7 +810,7 @@ void RecordHelper::overrideRecord(const mwmp::IngredientRecord& record)
         {
             const static unsigned int effectCap = sizeof(recordData.mData.mEffectID) / sizeof(recordData.mData.mEffectID[0]);
 
-            for (int effectIndex = 0; effectIndex < effectCap; effectIndex++)
+            for (unsigned int effectIndex = 0; effectIndex < effectCap; effectIndex++)
             {
                 finalData.mData.mEffectID[effectIndex] = recordData.mData.mEffectID[effectIndex];
                 finalData.mData.mAttributes[effectIndex] = recordData.mData.mAttributes[effectIndex];
@@ -1403,7 +1403,6 @@ void RecordHelper::overrideRecord(const mwmp::SpellRecord& record)
         return;
     }
 
-    bool isExistingId = doesRecordIdExist<ESM::Spell>(recordData.mId);
     MWBase::World *world = MWBase::Environment::get().getWorld();
 
     if (record.baseId.empty())

@@ -103,7 +103,7 @@ std::vector<RakNet::RakNetGUID> PlayerList::getPlayersInCell(const ESM::Cell& ce
 
     for (auto& playerEntry : playerList)
     {
-        if (playerEntry.first != RakNet::UNASSIGNED_CRABNET_GUID)
+        if (playerEntry.first != RakNet::UNASSIGNED_RAKNET_GUID)
         {
             if (Main::get().getCellController()->isSameCell(cell, playerEntry.second->cell))
             {

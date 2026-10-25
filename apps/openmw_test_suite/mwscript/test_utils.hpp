@@ -139,7 +139,14 @@ namespace
     {
         LocalVariables mLocals;
         std::map<std::string, GlobalVariables, std::less<>> mMembers;
+        unsigned short mContextType = 0;
+        std::string mCurrentScriptName;
     public:
+        unsigned short getContextType() const override { return mContextType; }
+        std::string getCurrentScriptName() const override { return mCurrentScriptName; }
+        void trackContextType(unsigned short type) override { mContextType = type; }
+        void trackCurrentScriptName(const std::string& name) override { mCurrentScriptName = name; }
+
         std::string getTarget() const override { return {}; };
 
         int getLocalShort(int index) const override { return mLocals.getShort(index); };

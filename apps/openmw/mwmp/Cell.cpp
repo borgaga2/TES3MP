@@ -391,9 +391,9 @@ void Cell::readCast(ActorList& actorList)
 
             // Set the correct drawState here if we've somehow we've missed a previous
             // AnimFlags packet
-            if (actor->drawState != MWMechanics::DrawState_::DrawState_Spell)
+            if (actor->drawState != static_cast<char>(MWMechanics::DrawState::Spell))
             {
-                actor->drawState = MWMechanics::DrawState_::DrawState_Spell;
+                actor->drawState = static_cast<char>(MWMechanics::DrawState::Spell);
                 actor->setAnimFlags();
             }
 

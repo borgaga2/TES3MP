@@ -50,6 +50,13 @@ jobs:
 
     - name: Build
       run: cmake --build . --config ${{env.BUILD_TYPE}} --parallel 3
+
+    - name: Smoke test client and server startup
+      run: |
+        ./tes3mp-server --help
+        ./tes3mp-server --version --resources ./resources
+        ./tes3mp --help
+        ./tes3mp --version --resources ./resources
  
 
 #    - name: Install
