@@ -375,7 +375,6 @@ namespace MWClass
 
     std::string Door::getDestination(const MWWorld::LiveCellRef<ESM::Door>& door)
     {
-        const MWWorld::ESMStore& store = MWBase::Environment::get().getWorld()->getStore();
 
         std::string dest = door.mRef.getDestCell();
         if (dest.empty())
