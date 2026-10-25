@@ -403,8 +403,10 @@ void Worldstate::setClientGlobals()
                 varType = ESM::VarType::VT_Short;
             else if (clientGlobal.variableType == mwmp::VARIABLE_TYPE::LONG)
                 varType = ESM::VarType::VT_Long;
-            if (clientGlobal.variableType == mwmp::VARIABLE_TYPE::FLOAT)
+            else if (clientGlobal.variableType == mwmp::VARIABLE_TYPE::FLOAT)
                 varType = ESM::VarType::VT_Float;
+            else
+                continue;
 
             world->createGlobal(clientGlobal.id, varType);
         }
