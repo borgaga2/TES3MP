@@ -202,6 +202,7 @@ Networking::Networking(): peer(RakNet::RakPeerInterface::GetInstance()), systemP
     sd.port=0;
     auto b = peer->Startup(1, &sd, 1);
     RakAssert(b==RakNet::CRABNET_STARTED);
+    (void)b; // RakAssert is disabled in release builds.
 
     systemPacketController.SetStream(0, &bsOut);
     playerPacketController.SetStream(0, &bsOut);

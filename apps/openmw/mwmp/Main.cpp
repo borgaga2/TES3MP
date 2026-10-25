@@ -6,7 +6,6 @@
 
 #include <components/esm3/esmwriter.hpp>
 #include <components/files/configurationmanager.hpp>
-#include <components/files/escape.hpp>
 
 #include "../mwbase/environment.hpp"
 
@@ -120,7 +119,7 @@ void Main::configure(const boost::program_options::variables_map &variables)
 {
     Main::address = variables["connect"].as<std::string>();
     Main::serverPassword = variables["password"].as<std::string>();
-    resourceDir = variables["resources"].as<Files::EscapePath>().mPath.string();
+    resourceDir = variables["resources"].as<Files::MaybeQuotedPath>().string();
 }
 
 bool Main::init(std::vector<std::string> &content, Files::Collections &collections)
