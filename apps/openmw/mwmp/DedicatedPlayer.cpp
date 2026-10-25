@@ -133,12 +133,12 @@ void DedicatedPlayer::move(float dt)
         static const int timeMultiplier = 15;
         osg::Vec3f lerp = MechanicsHelper::getLinearInterpolation(refPos.asVec3(), position.asVec3(), dt * timeMultiplier);
 
-        world->moveObject(ptr, lerp.x(), lerp.y(), lerp.z());
+        world->moveObject(ptr, lerp);
     }
     else
-        world->moveObject(ptr, position.pos[0], position.pos[1], position.pos[2]);
+        world->moveObject(ptr, position.asVec3());
 
-    world->rotateObject(ptr, position.rot[0], 0, position.rot[2]);
+    world->rotateObject(ptr, osg::Vec3f(position.rot[0], 0, position.rot[2]));
 
     MWMechanics::Movement *move = &ptr.getClass().getMovementSettings(ptr);
     move->mPosition[0] = direction.pos[0];
@@ -172,7 +172,7 @@ void DedicatedPlayer::setBaseInfo()
     }
 
     // Only set equipment if the player isn't disguised as a creature
-    if (ptr.getTypeName() == typeid(ESM::NPC).name())
+    if (ptr.getType() == ESM::NPC::sRecordId)
         setEquipment();
 
     previousRace = npc.mRace;
@@ -200,7 +200,7 @@ void DedicatedPlayer::setAnimFlags()
     // simply cast Levitate over and over on a player that's supposed to be flying
     if (!isFlying && !hasTcl && !isLevitationPurged)
     {
-        ptr.getClass().getCreatureStats(ptr).getActiveSpells().purgeEffect(ESM::MagicEffect::Levitate);
+        ptr.getClass().getCreatureStats(ptr).getActiveSpells().purgeEffect(ptr, ESM::MagicEffect::Levitate);
         isLevitationPurged = true;
     }
     else if ((isFlying || hasTcl) && !world->isFlying(ptr))
@@ -225,7 +225,7 @@ void DedicatedPlayer::setAnimFlags()
 
     MWMechanics::CreatureStats *ptrCreatureStats = &ptr.getClass().getCreatureStats(ptr);
 
-    ptrCreatureStats->setDrawState(static_cast<MWMechanics::DrawState_>(drawState));
+    ptrCreatureStats->setDrawState(static_cast<MWMechanics::DrawState>(drawState));
 
     ptrCreatureStats->setMovementFlag(CreatureStats::Flag_Run, (movementFlags & CreatureStats::Flag_Run) != 0);
     ptrCreatureStats->setMovementFlag(CreatureStats::Flag_Sneak, (movementFlags & CreatureStats::Flag_Sneak) != 0);
@@ -248,7 +248,7 @@ void DedicatedPlayer::setAttributes()
 void DedicatedPlayer::setSkills()
 {
     // Go no further if the player is disguised as a creature
-    if (ptr.getTypeName() != typeid(ESM::NPC).name()) return;
+    if (ptr.getType() != ESM::NPC::sRecordId) return;
 
     MWMechanics::NpcStats *ptrNpcStats = &ptr.getClass().getNpcStats(ptr);
     MWMechanics::SkillValue skillValue;
@@ -327,7 +327,7 @@ void DedicatedPlayer::setShapeshift()
     bool isNpc = false;
 
     if (reference)
-        isNpc = ptr.getTypeName() == typeid(ESM::NPC).name();
+        isNpc = ptr.getType() == ESM::NPC::sRecordId;
 
     if (creatureRefId != previousCreatureRefId || displayCreatureName != previousDisplayCreatureName)
     {
@@ -376,7 +376,7 @@ void DedicatedPlayer::setShapeshift()
         previousDisplayCreatureName = displayCreatureName;
     }
 
-    if (ptr.getTypeName() == typeid(ESM::NPC).name())
+    if (ptr.getType() == ESM::NPC::sRecordId)
     {
         MWBase::Environment::get().getMechanicsManager()->setWerewolf(ptr, isWerewolf);
 
@@ -415,7 +415,7 @@ void DedicatedPlayer::setCell()
 
     // Allow this player's reference to move across a cell now that a manual cell
     // update has been called
-    setPtr(world->moveObject(ptr, cellStore, position.pos[0], position.pos[1], position.pos[2]));
+    setPtr(world->moveObject(ptr, cellStore, position.asVec3()));
 
     // Remove the marker entirely if this player has moved to an interior that is inactive for us
     if (!cell.isExterior() && !Main::get().getCellController()->isActiveWorldCell(cell))
@@ -528,7 +528,7 @@ void DedicatedPlayer::removeSpellsActive()
         }
         else
         {
-            activeSpells.removeEffects(activeSpell.id);
+            activeSpells.removeEffects(getPtr(), activeSpell.id);
         }
     }
 }
@@ -536,7 +536,7 @@ void DedicatedPlayer::removeSpellsActive()
 void DedicatedPlayer::setSpellsActive()
 {
     MWMechanics::ActiveSpells& activeSpells = getPtr().getClass().getCreatureStats(getPtr()).getActiveSpells();
-    activeSpells.clear();
+    activeSpells.clear(getPtr());
 
     // Proceed by adding spells active
     addSpellsActive();
