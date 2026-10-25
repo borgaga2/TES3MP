@@ -1,6 +1,7 @@
 #include "Items.hpp"
 
 #include <components/misc/stringops.hpp>
+#include <string_view>
 #include <components/openmw-mp/NetworkMessages.hpp>
 
 #include <apps/openmw-mp/Script/ScriptFunctions.hpp>
@@ -99,7 +100,7 @@ bool ItemFunctions::HasItemEquipped(unsigned short pid, const char* refId)
     GET_PLAYER(pid, player, false);
 
     for (int slot = 0; slot < MWWorld::InventoryStore::Slots; slot++)
-        if (Misc::StringUtils::ciEqual(player->equipmentItems[slot].refId, refId))
+        if (Misc::StringUtils::ciEqual(player->equipmentItems[slot].refId, std::string_view(refId)))
             return true;
     return false;
 }

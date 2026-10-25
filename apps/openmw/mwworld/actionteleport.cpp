@@ -88,7 +88,7 @@ namespace MWWorld
 
             if (actor.getClass().getCreatureStats(actor).getAiSequence().isInCombat(world->getPlayerPtr()))
                 actor.getClass().getCreatureStats(actor).getAiSequence().stopCombat();
-            else if (mCellName.empty())
+            if (mCellName.empty())
             {
                 const osg::Vec2i index = positionToCellIndex(mPosition.pos[0], mPosition.pos[1]);
 

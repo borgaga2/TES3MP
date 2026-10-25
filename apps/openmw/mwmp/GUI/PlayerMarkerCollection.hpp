@@ -3,8 +3,8 @@
 #ifndef OPENMW_PLAYERMARKERCOLLECTION_HPP
 #define OPENMW_PLAYERMARKERCOLLECTION_HPP
 
-#include <components/esm/cellid.hpp>
-#include <components/esm/custommarkerstate.hpp>
+#include <components/esm3/cellid.hpp>
+#include <components/esm3/custommarkerstate.hpp>
 #include <map>
 #include <MyGUI_Common.h>
 #include <MyGUI_Colour.h>

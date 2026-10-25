@@ -128,10 +128,13 @@ namespace MWWorld
             osg::Vec4i gridCenterToBounds(const osg::Vec2i &centerCell) const;
             osg::Vec2i getNewGridCenter(const osg::Vec3f &pos, const osg::Vec2i *currentGridCenter = nullptr) const;
 
-            void unloadCell(CellStore* cell);
+
             void loadCell(CellStore *cell, Loading::Listener* loadingListener, bool respawn, const osg::Vec3f& position);
 
         public:
+            // TES3MP unloads server-managed cells through World.
+            void unloadCell(CellStore* cell);
+
 
             Scene(MWWorld::World& world, MWRender::RenderingManager& rendering, MWPhysics::PhysicsSystem *physics,
                    DetourNavigator::Navigator& navigator);

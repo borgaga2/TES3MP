@@ -21,14 +21,12 @@ namespace MWPhysics
 {
     class PhysicsTaskScheduler;
 
-    class HeightField : public osg::Object
+    class HeightField : public osg::Referenced
     {
     public:
         HeightField(const float* heights, int x, int y, int size, int verts, float minH, float maxH,
                     const osg::Object* holdObject, PhysicsTaskScheduler* scheduler);
         ~HeightField();
-
-        META_Object(MWPhysics, HeightField)
 
         btCollisionObject* getCollisionObject();
         const btCollisionObject* getCollisionObject() const;
@@ -44,8 +42,6 @@ namespace MWPhysics
 
         PhysicsTaskScheduler* mTaskScheduler;
 
-        HeightField();
-        HeightField(const HeightField&, const osg::CopyOp&);
         void operator=(const HeightField&);
         HeightField(const HeightField&);
     };

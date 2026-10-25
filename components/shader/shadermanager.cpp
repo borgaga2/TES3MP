@@ -508,7 +508,7 @@ namespace Shader
             // Assign a unique prefix to allow the SharedStateManager to compare shaders efficiently.
             // Append shader source filename for debugging.
             static unsigned int counter = 0;
-            shader->setName(Misc::StringUtils::format("%u %s", counter++, templateName));
+            shader->setName(std::to_string(counter++) + " " + templateName);
 
             mHotReloadManager->addShaderFiles(templateName, defines);
 

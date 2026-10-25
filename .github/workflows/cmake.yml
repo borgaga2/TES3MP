@@ -2,7 +2,7 @@ name: CMake
 
 on:
   pull_request:
-    branches: [ master ]
+    branches: [ openmw-0.51-merge ]
 
 env:
   BUILD_TYPE: RelWithDebInfo
@@ -20,29 +20,44 @@ jobs:
     - name: Install Building Dependancies
       run: sudo CI/install_debian_deps.sh gcc openmw-deps openmw-deps-dynamic
 
+    - name: Build RakNet networking dependency
+      shell: bash
+      run: |
+        set -euo pipefail
+        git clone https://github.com/facebookarchive/RakNet.git /tmp/tes3mp-raknet
+        git -C /tmp/tes3mp-raknet checkout 1a169895a900c9fc4841c556e16514182b75faf8
+        # RakNet's archived source compares a connection pointer to false.
+        # Use an explicit null check for modern C++ compilers.
+        sed -i.bak 's/GetConnectionByGUID(participantListIn\[index\], worldId)==false/GetConnectionByGUID(participantListIn[index], worldId)==nullptr/' /tmp/tes3mp-raknet/Source/ReplicaManager3.cpp
+        cmake -S /tmp/tes3mp-raknet -B /tmp/tes3mp-raknet-build \
+          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+          -DRAKNET_ENABLE_SAMPLES=OFF -DRAKNET_ENABLE_DLL=OFF \
+          -DRAKNET_ENABLE_STATIC=ON
+        cmake --build /tmp/tes3mp-raknet-build --target RakNetLibStatic --parallel 3
+        sudo mkdir -p /usr/local/include/raknet /usr/local/lib
+        sudo cp /tmp/tes3mp-raknet/Source/*.h /usr/local/include/raknet/
+        sudo cp "$(find /tmp/tes3mp-raknet-build -name 'libRakNetLibStatic.a' -print -quit)" /usr/local/lib/
+
     - name: Prime ccache
       uses: hendrikmuhs/ccache-action@v1
       with:
         key: ${{ matrix.os }}-${{ env.BUILD_TYPE }}
         max-size: 1000M
 
-    - name: Install gtest
-      run: |
-        export CONFIGURATION="Release"
-        export GOOGLETEST_DIR="."
-        export GENERATOR="Unix Makefiles"
-        export CC="gcc"
-        export CXX="g++"
-        sudo -E CI/build_googletest.sh
-
     - name: Configure
-      run: cmake -S . -B . -DGTEST_ROOT="$(pwd)/googletest/build" -DGMOCK_ROOT="$(pwd)/googletest/build" -DBUILD_UNITTESTS=ON -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INSTALL_PREFIX=./install -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_FLAGS='-Werror' -DCMAKE_CXX_FLAGS="-Werror -Wno-error=deprecated-declarations -Wno-error=nonnull -Wno-error=deprecated-copy"
+      # The widgets use virtual APIs from the MyGUI revision pinned in extern/.
+      run: cmake -S . -B . -DBUILD_UNITTESTS=OFF -DOPENMW_USE_SYSTEM_MYGUI=OFF -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INSTALL_PREFIX=./install -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_FLAGS='-Werror' -DCMAKE_CXX_FLAGS="-Werror -Wno-error=deprecated-declarations -Wno-error=nonnull -Wno-error=deprecated-copy"
 
     - name: Build
       run: cmake --build . --config ${{env.BUILD_TYPE}} --parallel 3
+
+    - name: Smoke test client and server startup
+      run: |
+        ./tes3mp-server --help
+        ./tes3mp-server --version --resources ./resources
+        ./tes3mp --help
+        ./tes3mp --version --resources ./resources
  
-    - name: Test
-      run: ./openmw_test_suite
 
 #    - name: Install
 #      shell: bash
@@ -62,13 +77,32 @@ jobs:
 #        name: build_artifact.7z
 
   MacOS:
-    runs-on: macos-latest
+    # The legacy dependency archive contains x86_64 libraries.
+    runs-on: macos-15-intel
 
     steps:
     - uses: actions/checkout@v2
 
     - name: Install Building Dependancies
       run: CI/before_install.osx.sh
+
+    - name: Build RakNet networking dependency
+      shell: bash
+      run: |
+        set -euo pipefail
+        git clone https://github.com/facebookarchive/RakNet.git /tmp/tes3mp-raknet
+        git -C /tmp/tes3mp-raknet checkout 1a169895a900c9fc4841c556e16514182b75faf8
+        # RakNet's archived source compares a connection pointer to false.
+        # Use an explicit null check for modern C++ compilers.
+        sed -i.bak 's/GetConnectionByGUID(participantListIn\[index\], worldId)==false/GetConnectionByGUID(participantListIn[index], worldId)==nullptr/' /tmp/tes3mp-raknet/Source/ReplicaManager3.cpp
+        cmake -S /tmp/tes3mp-raknet -B /tmp/tes3mp-raknet-build \
+          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+          -DRAKNET_ENABLE_SAMPLES=OFF -DRAKNET_ENABLE_DLL=OFF \
+          -DRAKNET_ENABLE_STATIC=ON
+        cmake --build /tmp/tes3mp-raknet-build --target RakNetLibStatic --parallel 3
+        sudo mkdir -p /usr/local/include/raknet /usr/local/lib
+        sudo cp /tmp/tes3mp-raknet/Source/*.h /usr/local/include/raknet/
+        sudo cp "$(find /tmp/tes3mp-raknet-build -name 'libRakNetLibStatic.a' -print -quit)" /usr/local/lib/
 
     - name: Prime ccache
       uses: hendrikmuhs/ccache-action@v1

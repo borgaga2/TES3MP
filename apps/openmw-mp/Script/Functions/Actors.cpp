@@ -6,7 +6,7 @@
 #include <apps/openmw-mp/Utils.hpp>
 #include <apps/openmw-mp/Script/ScriptFunctions.hpp>
 
-#include <components/esm/creaturestats.hpp>
+#include <components/esm3/creaturestats.hpp>
 
 #include "Actors.hpp"
 

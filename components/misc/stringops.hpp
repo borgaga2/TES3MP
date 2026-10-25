@@ -2,6 +2,9 @@
 #define MISC_STRINGOPS_H
 
 #include <cctype>
+#include <cstdio>
+#include <stdexcept>
+#include <vector>
 #include <string>
 #include <algorithm>
 #include <string_view>
@@ -190,12 +193,15 @@ public:
     static std::string format(const char* fmt, Args const & ... args)
     {
         auto size = std::snprintf(nullptr, 0, fmt, argument(args) ...);
-        // Note: sprintf also writes a trailing null character. We should remove it.
-        std::string ret(size+1, '\0');
-        std::sprintf(&ret[0], fmt, argument(args) ...);
-        ret.erase(size);
-
-        return ret;
+        if (size < 0)
+            throw std::runtime_error("Failed to format string");
+        // Include space for the terminator and check that both passes agree.
+        const auto length = static_cast<std::size_t>(size);
+        std::vector<char> buffer(length + 1);
+        const int written = std::snprintf(buffer.data(), buffer.size(), fmt, argument(args) ...);
+        if (written != size)
+            throw std::runtime_error("Formatted string size changed");
+        return std::string(buffer.data(), length);
     }
 
     template <typename ... Args>

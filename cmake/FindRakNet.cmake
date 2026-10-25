@@ -43,6 +43,12 @@ FIND_PATH (RakNet_INCLUDES raknet/RakPeer.h
 MESSAGE(STATUS ${RakNet_INCLUDES})
 MESSAGE(STATUS ${RakNet_LIBRARY_RELEASE})
  
+# CI and many package installations provide only the release static library.
+# Use it for Debug configurations too when a separate debug archive is absent.
+IF(RakNet_LIBRARY_RELEASE AND NOT RakNet_LIBRARY_DEBUG)
+    SET(RakNet_LIBRARY_DEBUG "${RakNet_LIBRARY_RELEASE}")
+ENDIF()
+
 IF(RakNet_INCLUDES AND RakNet_LIBRARY_RELEASE)
     SET(RakNet_FOUND TRUE)
 ENDIF(RakNet_INCLUDES AND RakNet_LIBRARY_RELEASE)

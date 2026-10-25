@@ -543,12 +543,6 @@ namespace MWClass
                     if (ishealth && agilityTerm <= damage && knockdownTerm <= Misc::Rng::roll0to99(prng))
                         stats.setKnockedDown(true);
                 }
-                    stats.setKnockedDown(true);
-                else
-                {
-                    if (ishealth && agilityTerm <= damage && knockdownTerm <= Misc::Rng::roll0to99())
-                        stats.setKnockedDown(true);
-                }
 
                 if (!stats.getKnockedDown())
                     stats.setHitRecovery(true); // Is this supposed to always occur?

@@ -1,13 +1,13 @@
 #ifndef OPENMW_BASEPLAYER_HPP
 #define OPENMW_BASEPLAYER_HPP
 
-#include <components/esm/loadcell.hpp>
-#include <components/esm/loadcrea.hpp>
-#include <components/esm/loadnpc.hpp>
-#include <components/esm/npcstats.hpp>
-#include <components/esm/creaturestats.hpp>
-#include <components/esm/loadclas.hpp>
-#include <components/esm/loadspel.hpp>
+#include <components/esm3/loadcell.hpp>
+#include <components/esm3/loadcrea.hpp>
+#include <components/esm3/loadnpc.hpp>
+#include <components/esm3/npcstats.hpp>
+#include <components/esm3/creaturestats.hpp>
+#include <components/esm3/loadclas.hpp>
+#include <components/esm3/loadspel.hpp>
 
 #include <components/openmw-mp/Base/BaseStructs.hpp>
 

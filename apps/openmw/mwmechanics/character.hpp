@@ -233,9 +233,9 @@ class CharacterController : public MWRender::Animation::TextKeyListener
     std::string_view getWeaponShortGroup(int weaponType) const;
 
     bool getAttackingOrSpell() const;
-    void setAttackingOrSpell(bool attackingOrSpell) const;
 
 public:
+        void setAttackingOrSpell(bool attackingOrSpell) const;
     CharacterController(const MWWorld::Ptr &ptr, MWRender::Animation *anim);
     virtual ~CharacterController();
 

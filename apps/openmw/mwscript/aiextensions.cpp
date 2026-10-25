@@ -344,7 +344,7 @@ namespace MWScript
                         so send a combat packet regardless of whether we're the cell authority or not; the server
                         can decide if it wants to comply with them by forwarding them to the cell authority
                     */
-                    if (stat.getBase() != initialValue && mIndex == MWMechanics::CreatureStats::AI_Fight && value == 100)
+                    if (stat.getBase() != initialValue && mIndex == MWMechanics::AiSetting::Fight && value == 100)
                     {
                         mwmp::ActorList *actorList = mwmp::Main::get().getNetworking()->getActorList();
                         actorList->reset();

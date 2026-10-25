@@ -115,7 +115,7 @@ bool Cell::containsActor(int refNum, int mpNum)
     {
         mwmp::BaseActor actor = cellActorList.baseActors.at(i);
 
-        if (actor.refNum == refNum && actor.mpNum == mpNum)
+        if (actor.refNum == static_cast<unsigned int>(refNum) && actor.mpNum == static_cast<unsigned int>(mpNum))
             return true;
     }
     return false;
@@ -127,7 +127,7 @@ mwmp::BaseActor *Cell::getActor(int refNum, int mpNum)
     {
         mwmp::BaseActor *actor = &cellActorList.baseActors.at(i);
 
-        if (actor->refNum == refNum && actor->mpNum == mpNum)
+        if (actor->refNum == static_cast<unsigned int>(refNum) && actor->mpNum == static_cast<unsigned int>(mpNum))
             return actor;
     }
     return 0;
@@ -137,8 +137,8 @@ void Cell::removeActors(const mwmp::BaseActorList *newActorList)
 {
     for (std::vector<mwmp::BaseActor>::iterator it = cellActorList.baseActors.begin(); it != cellActorList.baseActors.end();)
     {
-        int refNum = (*it).refNum;
-        int mpNum = (*it).mpNum;
+        const auto refNum = it->refNum;
+        const auto mpNum = it->mpNum;
 
         bool foundActor = false;
 

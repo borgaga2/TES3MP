@@ -22,8 +22,8 @@ namespace mwmp
                 DedicatedPlayer& dedicatedPlayer = static_cast<DedicatedPlayer&>(*player);
                 MWWorld::Ptr playerPtr = dedicatedPlayer.getPtr();
                 MWBase::World* world = MWBase::Environment::get().getWorld();
-                world->moveObject(playerPtr, dedicatedPlayer.position.pos[0], dedicatedPlayer.position.pos[1], dedicatedPlayer.position.pos[2]);
-                world->rotateObject(playerPtr, dedicatedPlayer.position.rot[0], 0, dedicatedPlayer.position.rot[2]);
+                world->moveObject(playerPtr, dedicatedPlayer.position.asVec3());
+                world->rotateObject(playerPtr, osg::Vec3f(dedicatedPlayer.position.rot[0], 0, dedicatedPlayer.position.rot[2]));
                 MechanicsHelper::processCast(player->cast, playerPtr);
             }
         }

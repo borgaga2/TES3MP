@@ -56,6 +56,9 @@ namespace Settings
         static std::string load(const Files::ConfigurationManager& cfgMgr, bool loadEditorSettings = false);
         ///< load settings from all active config dirs. Returns the path of the last loaded file.
 
+        // TES3MP loads its separate client/server user configuration files directly.
+        static void loadUser(const std::string& file);
+
         static void saveUser (const std::string& file);
         ///< save user settings to file
 

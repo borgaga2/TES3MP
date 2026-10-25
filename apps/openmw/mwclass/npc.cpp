@@ -1,4 +1,4 @@
-﻿#include "npc.hpp"
+#include "npc.hpp"
 
 #include <MyGUI_TextIterator.h>
 
@@ -529,7 +529,7 @@ namespace MWClass
         // preload body parts
         if (race)
         {
-            const std::vector<const ESM::BodyPart*>& parts = MWRender::NpcAnimation::getBodyParts(Misc::StringUtils::lowerCase(race->mId), female, false, false);
+            const std::vector<const ESM::BodyPart*> parts = MWRender::NpcAnimation::getBodyParts(Misc::StringUtils::lowerCase(race->mId), female, false, false);
             for (std::vector<const ESM::BodyPart*>::const_iterator it = parts.begin(); it != parts.end(); ++it)
             {
                 const ESM::BodyPart* part = *it;
@@ -897,11 +897,6 @@ namespace MWClass
                 if (ishealth && agilityTerm <= damage && knockdownTerm <= Misc::Rng::roll0to99(prng))
                     stats.setKnockedDown(true);
             }
-            else
-            {
-                if (ishealth && agilityTerm <= damage && knockdownTerm <= Misc::Rng::roll0to99())
-                    stats.setKnockedDown(true);
-            }
 
             if (!stats.getKnockedDown())
                 stats.setHitRecovery(true); // Is this supposed to always occur?
@@ -1092,7 +1087,7 @@ namespace MWClass
             Don't display a dialogue screen for two players interacting with each other
         */
         if (actor == MWMechanics::getPlayer() && mwmp::PlayerList::isDedicatedPlayer(ptr))
-            return std::shared_ptr<MWWorld::Action>(new MWWorld::FailedAction(""));
+            return std::make_unique<MWWorld::FailedAction>("");
         /*
             End of tes3mp addition
         */
@@ -1105,7 +1100,7 @@ namespace MWClass
             the local player
         */
         if (ptr != MWMechanics::getPlayer() && actor != MWMechanics::getPlayer())
-            return std::shared_ptr<MWWorld::Action>(new MWWorld::FailedAction(""));
+            return std::make_unique<MWWorld::FailedAction>("");
         /*
             End of tes3mp addition
         */

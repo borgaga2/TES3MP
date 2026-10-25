@@ -288,3 +288,10 @@ endif()
 if (WIN32)
     INSTALL(TARGETS tes3mp RUNTIME DESTINATION ".")
 endif (WIN32)
+# GCC 13 diagnoses bundled sol3's inlined optional storage and differently sized
+# literal-key specializations in this translation unit. Keep those diagnostics
+# visible without making them fatal; other warnings and sources retain -Werror.
+set_property(SOURCE mwlua/nearbybindings.cpp APPEND PROPERTY COMPILE_OPTIONS
+    "$<$<CXX_COMPILER_ID:GNU>:-Wno-error=maybe-uninitialized>"
+    "$<$<CXX_COMPILER_ID:GNU>:-Wno-error=array-bounds>"
+)

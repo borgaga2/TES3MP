@@ -549,16 +549,7 @@ namespace MWGui
     JailScreen* mJailScreen;
     ContainerWindow* mContainerWindow;
 
-    /*
-        Start of tes3mp addition
-
-        Keep a pointer to the container window because of its usefulness
-        in multiplayer for container sync
-    */
-    ContainerWindow* mContainerWindow;
-    /*
-        End of tes3mp addition
-    */
+    // The upstream mContainerWindow member above also serves TES3MP container synchronization.
 
     std::vector<WindowBase*> mWindows;
 

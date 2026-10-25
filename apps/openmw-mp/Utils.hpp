@@ -7,7 +7,7 @@
 
 #include <boost/any.hpp>
 
-#include <components/esm/loadcell.hpp>
+#include <components/esm3/loadcell.hpp>
 
 #include <components/openmw-mp/Utils.hpp>
 #include <components/openmw-mp/TimedLog.hpp>

@@ -1,9 +1,9 @@
 #ifndef OPENMW_DEDICATEDPLAYER_HPP
 #define OPENMW_DEDICATEDPLAYER_HPP
 
-#include <components/esm/custommarkerstate.hpp>
-#include <components/esm/loadcrea.hpp>
-#include <components/esm/loadnpc.hpp>
+#include <components/esm3/custommarkerstate.hpp>
+#include <components/esm3/loadcrea.hpp>
+#include <components/esm3/loadnpc.hpp>
 #include <components/openmw-mp/Base/BasePlayer.hpp>
 
 #include "../mwclass/npc.hpp"

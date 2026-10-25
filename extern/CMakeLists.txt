@@ -90,6 +90,15 @@ if(NOT OPENMW_USE_SYSTEM_MYGUI)
     )
     FetchContent_MakeAvailableExcludeFromAll(mygui)
 
+    # The pinned MyGUI revision relies on transitive fixed-width integer includes.
+    # GCC 13 no longer provides them through the standard container headers.
+    set(_mygui_types_path "${mygui_SOURCE_DIR}/MyGUIEngine/include/MyGUI_Types.h")
+    file(READ "${_mygui_types_path}" _mygui_types)
+    if(NOT _mygui_types MATCHES "#include <cstdint>")
+        string(REPLACE "#include <vector>" "#include <cstdint>\n#include <vector>" _mygui_types "${_mygui_types}")
+        file(WRITE "${_mygui_types_path}" "${_mygui_types}")
+    endif()
+
     set(MyGUI_INCLUDE_DIRS ${mygui_SOURCE_DIR}/MyGUIEngine/include PARENT_SCOPE)
     set(MyGUI_LIBRARIES MyGUIEngine PARENT_SCOPE)
 endif()

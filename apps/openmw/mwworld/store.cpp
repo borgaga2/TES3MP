@@ -740,30 +740,13 @@ namespace MWWorld
     */
     ESM::Cell *Store<ESM::Cell>::override(const ESM::Cell &cell)
     {
-        if (search(cell) != 0)
+        if (ESM::Cell* existing = const_cast<ESM::Cell*>(search(cell)))
         {
-            for (auto it = mSharedInt.begin(); it != mSharedInt.end(); ++it)
-            {
-                if (Misc::StringUtils::ciEqual((*it)->mName, cell.mName))
-                {
-                    (*it) = &const_cast<ESM::Cell&>(cell);
-                    break;
-                }
-            }
-
-            for (auto it = mInt.begin(); it != mInt.end(); ++it)
-            {
-                if (Misc::StringUtils::ciEqual((*it).second.mName, cell.mName))
-                {
-                    (*it).second = cell;
-                    return &(*it).second;
-                }
-            }
+            // Replace the owned record in place so shared cell pointers stay valid.
+            *existing = cell;
+            return existing;
         }
-        else
-        {
-            return insert(cell);
-        }
+        return insert(cell);
     }
     /*
         End of tes3mp addition

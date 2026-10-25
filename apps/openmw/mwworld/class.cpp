@@ -1,4 +1,5 @@
 #include "class.hpp"
+#include <components/esm/common.hpp>
 
 #include <stdexcept>
 
@@ -79,7 +80,7 @@ namespace MWWorld
         */
         LOG_MESSAGE_SIMPLE(TimedLog::LOG_ERROR, "Attempt at getting creatureStats for %s %i-%i which is a %s!",
             ptr.getCellRef().getRefId().c_str(), ptr.getCellRef().getRefNum().mIndex, ptr.getCellRef().getMpNum(),
-            ptr.getClass().getTypeName().c_str());
+            ESM::printName(ptr.getClass().getType()).c_str());
         /*
             End of tes3mp addition
         */

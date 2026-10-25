@@ -7,7 +7,7 @@
 #include <components/openmw-mp/Version.hpp>
 #include <components/openmw-mp/Packets/PacketPreInit.hpp>
 
-#include <components/esm/cellid.hpp>
+#include <components/esm3/cellid.hpp>
 #include <components/files/configurationmanager.hpp>
 
 #include "../mwbase/environment.hpp"
@@ -201,7 +201,8 @@ Networking::Networking(): peer(RakNet::RakPeerInterface::GetInstance()), systemP
     RakNet::SocketDescriptor sd;
     sd.port=0;
     auto b = peer->Startup(1, &sd, 1);
-    RakAssert(b==RakNet::CRABNET_STARTED);
+    RakAssert(b==RakNet::RAKNET_STARTED);
+    (void)b; // RakAssert is disabled in release builds.
 
     systemPacketController.SetStream(0, &bsOut);
     playerPacketController.SetStream(0, &bsOut);

@@ -34,7 +34,7 @@ using namespace mwmp;
 
 DedicatedActor::DedicatedActor()
 {
-    drawState = MWMechanics::DrawState_::DrawState_Nothing;
+    drawState = static_cast<char>(MWMechanics::DrawState::Nothing);
     movementFlags = 0;
     animation.groupname = "";
     sound = "";
@@ -69,7 +69,7 @@ void DedicatedActor::setCell(MWWorld::CellStore *cellStore)
 {
     MWBase::World *world = MWBase::Environment::get().getWorld();
 
-    ptr = world->moveObject(ptr, cellStore, position.pos[0], position.pos[1], position.pos[2]);
+    ptr = world->moveObject(ptr, cellStore, position.asVec3());
     setMovementSettings();
 
     hasChangedCell = true;
@@ -94,7 +94,7 @@ void DedicatedActor::move(float dt)
         refPos.pos[1] = lerp.y();
         refPos.pos[2] = lerp.z();
 
-        world->moveObject(ptr, refPos.pos[0], refPos.pos[1], refPos.pos[2]);
+        world->moveObject(ptr, refPos.asVec3());
     }
     else
     {
@@ -103,7 +103,7 @@ void DedicatedActor::move(float dt)
     }
 
     setMovementSettings();
-    world->rotateObject(ptr, position.rot[0], position.rot[1], position.rot[2]);
+    world->rotateObject(ptr, osg::Vec3f(position.rot[0], position.rot[1], position.rot[2]));
 }
 
 void DedicatedActor::setMovementSettings()
@@ -125,7 +125,7 @@ void DedicatedActor::setMovementSettings()
 void DedicatedActor::setPosition()
 {
     MWBase::World *world = MWBase::Environment::get().getWorld();
-    world->moveObject(ptr, position.pos[0], position.pos[1], position.pos[2]);
+    world->moveObject(ptr, position.asVec3());
 }
 
 void DedicatedActor::setAnimFlags()
@@ -134,7 +134,7 @@ void DedicatedActor::setAnimFlags()
 
     MWMechanics::CreatureStats *ptrCreatureStats = &ptr.getClass().getCreatureStats(ptr);
 
-    ptrCreatureStats->setDrawState(static_cast<MWMechanics::DrawState_>(drawState));
+    ptrCreatureStats->setDrawState(static_cast<MWMechanics::DrawState>(drawState));
 
     ptrCreatureStats->setMovementFlag(CreatureStats::Flag_Run, (movementFlags & CreatureStats::Flag_Run) != 0);
     ptrCreatureStats->setMovementFlag(CreatureStats::Flag_Sneak, (movementFlags & CreatureStats::Flag_Sneak) != 0);
@@ -210,7 +210,7 @@ void DedicatedActor::setEquipment()
 void DedicatedActor::setAi()
 {
     MWMechanics::CreatureStats *ptrCreatureStats = &ptr.getClass().getCreatureStats(ptr);
-    ptrCreatureStats->setAiSetting(MWMechanics::CreatureStats::AI_Fight, 0);
+    ptrCreatureStats->setAiSetting(MWMechanics::AiSetting::Fight, 0);
 
     LOG_APPEND(TimedLog::LOG_VERBOSE, "- actor cellRef: %s %i-%i",
         ptr.getCellRef().getRefId().c_str(), ptr.getCellRef().getRefNum().mIndex, ptr.getCellRef().getMpNum());
@@ -226,7 +226,7 @@ void DedicatedActor::setAi()
         LOG_APPEND(TimedLog::LOG_VERBOSE, "-- Travelling to %f, %f, %f",
             aiCoordinates.pos[0], aiCoordinates.pos[1], aiCoordinates.pos[2]);
 
-        MWMechanics::AiTravel package(aiCoordinates.pos[0], aiCoordinates.pos[1], aiCoordinates.pos[2]);
+        MWMechanics::AiTravel package(aiCoordinates.pos[0], aiCoordinates.pos[1], aiCoordinates.pos[2], aiShouldRepeat);
         ptrCreatureStats->getAiSequence().stack(package, ptr, true);
     }
     else if (aiAction == mwmp::BaseActorList::WANDER)
@@ -295,7 +295,7 @@ void DedicatedActor::setAi()
                     aiDuration, aiCoordinates.pos[0], aiCoordinates.pos[1], aiCoordinates.pos[2]);
 
                 MWMechanics::AiEscort package(targetPtr.getCellRef().getRefId(), aiDuration,
-                    aiCoordinates.pos[0], aiCoordinates.pos[1], aiCoordinates.pos[2]);
+                    aiCoordinates.pos[0], aiCoordinates.pos[1], aiCoordinates.pos[2], aiShouldRepeat);
                 ptrCreatureStats->getAiSequence().stack(package, ptr, true);
             }
             else if (aiAction == mwmp::BaseActorList::FOLLOW)
@@ -389,7 +389,7 @@ void DedicatedActor::removeSpellsActive()
         }
         else
         {
-            activeSpells.removeEffects(activeSpell.id);
+            activeSpells.removeEffects(getPtr(), activeSpell.id);
         }
     }
 }
@@ -397,7 +397,7 @@ void DedicatedActor::removeSpellsActive()
 void DedicatedActor::setSpellsActive()
 {
     MWMechanics::ActiveSpells& activeSpells = getPtr().getClass().getCreatureStats(getPtr()).getActiveSpells();
-    activeSpells.clear();
+    activeSpells.clear(getPtr());
 
     // Proceed by adding spells active
     addSpellsActive();
@@ -417,7 +417,7 @@ void DedicatedActor::setPtr(const MWWorld::Ptr& newPtr)
     mpNum = ptr.getCellRef().getMpNum();
 
     position = ptr.getRefData().getPosition();
-    drawState = ptr.getClass().getCreatureStats(ptr).getDrawState();
+    drawState = static_cast<char>(ptr.getClass().getCreatureStats(ptr).getDrawState());
 }
 
 void DedicatedActor::reloadPtr()

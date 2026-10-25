@@ -78,6 +78,12 @@ std::string Manager::load(const Files::ConfigurationManager& cfgMgr, bool loadEd
     return settingspath;
 }
 
+void Manager::loadUser(const std::string& file)
+{
+    SettingsFileParser parser;
+    parser.loadSettingsFile(file, mUserSettings, false, false);
+}
+
 void Manager::saveUser(const std::string &file)
 {
     SettingsFileParser parser;

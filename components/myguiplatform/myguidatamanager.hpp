@@ -4,6 +4,7 @@
 #include <MyGUI_DataManager.h>
 
 #include <string>
+#include <utility>
 
 namespace VFS
 {
@@ -44,10 +45,14 @@ public:
         @param _name Resource name.
         @return Return full path to specified data.
     */
-    const std::string& getDataPath(const std::string& _name) const override;
+    // MyGUI changed this API from a reference to a value return in 3.4.3.
+    using DataPathResult = decltype(std::declval<const MyGUI::DataManager&>().getDataPath(
+        std::declval<const std::string&>()));
+    DataPathResult getDataPath(const std::string& _name) const override;
 
 private:
     std::string mResourcePath;
+    mutable std::string mDataPath;
 
     const VFS::Manager* mVfs;
 };

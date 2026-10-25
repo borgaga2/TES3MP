@@ -62,7 +62,7 @@ void MechanicsHelper::spawnLeveledCreatures(MWWorld::CellStore* cellStore)
     {
         MWWorld::Ptr ptr(&lref, cellStore);
 
-        std::string id = MWMechanics::getLevelledItem(ptr.get<ESM::CreatureLevList>()->mBase, true);
+        std::string id = MWMechanics::getLevelledItem(ptr.get<ESM::CreatureLevList>()->mBase, true, MWBase::Environment::get().getWorld()->getPrng());
 
         if (!id.empty())
         {
@@ -90,7 +90,7 @@ bool MechanicsHelper::isUsingRangedWeapon(const MWWorld::Ptr& ptr)
         MWWorld::ContainerStoreIterator weaponSlot = inventoryStore.getSlot(
             MWWorld::InventoryStore::Slot_CarriedRight);
 
-        if (weaponSlot != inventoryStore.end() && weaponSlot->getTypeName() == typeid(ESM::Weapon).name())
+        if (weaponSlot != inventoryStore.end() && weaponSlot->getType() == ESM::Weapon::sRecordId)
         {
             const ESM::Weapon* weaponRecord = weaponSlot->get<ESM::Weapon>()->mBase;
 
@@ -439,7 +439,7 @@ void MechanicsHelper::processAttack(Attack attack, const MWWorld::Ptr& attacker)
                 }
             }
 
-            if (!weaponPtr.isEmpty() && weaponPtr.getTypeName() != typeid(ESM::Weapon).name())
+            if (!weaponPtr.isEmpty() && weaponPtr.getType() != ESM::Weapon::sRecordId)
                 weaponPtr = MWWorld::Ptr();
         }
 

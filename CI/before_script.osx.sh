@@ -8,27 +8,33 @@ git config --global advice.detachedHead false
 
 DEPENDENCIES_ROOT="/private/tmp/openmw-deps/openmw-deps"
 QT_PATH=$(brew --prefix qt@5)
+ICU_PATH=$(brew --prefix icu4c)
 CCACHE_EXECUTABLE=$(brew --prefix ccache)/bin/ccache
 mkdir build
 cd build
 
+# Boost 1.78 in this legacy bundle still uses std::unary_function.
+# libc++ documents this compatibility macro for C++17 and later.
 cmake \
--D CMAKE_PREFIX_PATH="$DEPENDENCIES_ROOT;$QT_PATH" \
+-D CMAKE_PREFIX_PATH="$DEPENDENCIES_ROOT;$QT_PATH;$ICU_PATH" \
 -D CMAKE_C_COMPILER_LAUNCHER="$CCACHE_EXECUTABLE" \
 -D CMAKE_CXX_COMPILER_LAUNCHER="$CCACHE_EXECUTABLE" \
--D CMAKE_CXX_FLAGS="-stdlib=libc++" \
+-D CMAKE_CXX_FLAGS="-stdlib=libc++ -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION" \
 -D CMAKE_C_FLAGS_RELEASE="-g -O0" \
 -D CMAKE_CXX_FLAGS_RELEASE="-g -O0" \
 -D CMAKE_OSX_DEPLOYMENT_TARGET="11" \
 -D CMAKE_BUILD_TYPE=RELEASE \
+-D CMAKE_POLICY_VERSION_MINIMUM=3.5 \
 -D OPENMW_OSX_DEPLOYMENT=TRUE \
 -D OPENMW_USE_SYSTEM_SQLITE3=OFF \
+-D OPENMW_USE_SYSTEM_BULLET=OFF \
 -D BUILD_OPENMW=TRUE \
 -D BUILD_OPENCS=TRUE \
 -D BUILD_ESMTOOL=TRUE \
 -D BUILD_BSATOOL=TRUE \
 -D BUILD_ESSIMPORTER=TRUE \
 -D BUILD_NIFTEST=TRUE \
--D ICU_ROOT="/usr/local/opt/icu4c" \
+-D ICU_ROOT="$ICU_PATH" \
+-D ICU_INCLUDE_DIR="$ICU_PATH/include" \
 -G"Unix Makefiles" \
 ..
